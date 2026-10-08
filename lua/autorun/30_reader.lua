@@ -6,6 +6,11 @@
 -- costs ~1.6us whatever it carries. The worker (workers/reader.lua) turns
 -- them into text. Think picks the answers up and prints a box's text once it
 -- has stopped changing, i.e. once the typewriter animation has finished.
+--
+-- Hooks for other files (the dev teaching layer uses them):
+--   "SwSh.Result" (res)    every reading, as the worker returned it
+--   "SwSh.Think"  ()       once per Think, after results are applied
+-- and SWSH.reader.requestGlyphs() / SWSH.reader.reshare().
 
 local S = {
     lines   = { "", "" },  -- the latest reading
@@ -13,8 +18,6 @@ local S = {
     pending = nil,         -- text seen but not yet stable
     stable  = 0,           -- how many reads in a row it has been the same
     logged  = nil,         -- the last text printed
-    teach   = nil,         -- { "line 1", "line 2" } waiting to be learned
-    teachMsg = "",
 }
 SWSH.state = S
 
@@ -22,12 +25,16 @@ local EVERY  = 4           -- read every Nth frame
 local STABLE = 2           -- identical reads before a text counts as final
 
 local reader = worker.spawn("workers/reader.lua")
-local function shareAtlas()
+local wantGlyphs = false
+
+SWSH.reader = {}
+function SWSH.reader.reshare()
     if reader then reader:share("ATLAS", SWSH.fullAtlas()) end
 end
-shareAtlas()
+-- Ask for every glyph's fingerprint on the next read, not only unknown ones.
+function SWSH.reader.requestGlyphs() wantGlyphs = true end
 
-local frameNo, seq, warned = 0, 0, false
+local frameNo, seq, warned, shared = 0, 0, false, false
 
 -- Is the white box there? Every paper probe must be bright and flat.
 local function boxOpen(frame, sx, sy)
@@ -81,106 +88,38 @@ function SWSH.mod:OnFrame(frame)
 
     seq = seq + 1
     -- post refuses while the worker is busy; that frame is simply skipped.
-    reader:post({ seq = seq, w = w, lines = lines, learn = S.teach ~= nil })
-end
-
--- Count UTF-8 characters, skipping spaces: one per glyph the worker finds.
-local function chars(s)
-    local out = {}
-    for _, cp in utf8.codes(s) do
-        local c = utf8.char(cp)
-        if c ~= " " then out[#out + 1] = c end
+    if reader:post({ seq = seq, w = w, lines = lines, learn = wantGlyphs }) then
+        wantGlyphs = false
     end
-    return out
-end
-
-local function learn(res)
-    local want, added, msgs = S.teach, 0, {}
-    S.teach = nil
-    for i = 1, 2 do
-        local typed = want[i] or ""
-        local L = res.lines[i]
-        local cs = chars(typed)
-        if #cs > 0 then
-            if not L.glyphs or #L.glyphs ~= #cs then
-                msgs[#msgs + 1] = string.format("line %d: saw %d glyphs but you typed %d characters",
-                                                i, L.glyphs and #L.glyphs or 0, #cs)
-            else
-                for k, g in ipairs(L.glyphs) do
-                    SWSH.saveLearned({ ch = cs[k], w = g.w, t = g.t, b = g.b, f = g.f })
-                    added = added + 1
-                end
-            end
-        end
-    end
-    if added > 0 then shareAtlas() end
-    S.teachMsg = (#msgs > 0 and (table.concat(msgs, "; ") .. ". ") or "")
-                 .. "Learned " .. added .. " glyphs."
-    log(MOD_NAME .. ": " .. S.teachMsg)
 end
 
 function SWSH.mod:Think()
     if not reader then return end
+    -- Shared here rather than at load so every autorun file (the dev layer's
+    -- learned glyphs included) has had its say first.
+    if not shared then shared = true; SWSH.reader.reshare() end
+
     for _, res in ipairs(reader:collect()) do
-        do
-            if S.teach and res.lines[1].glyphs then learn(res) end
-            S.lines = { res.lines[1].text, res.lines[2].text }
-            local text = S.lines[1] .. "\n" .. S.lines[2]
-            if text == S.pending then
-                S.stable = S.stable + 1
-            else
-                S.pending, S.stable = text, 1
-            end
-            if S.stable == STABLE and text ~= S.logged and text ~= "\n" then
-                S.logged = text
-                if SWSH.mod:get("log_text") then
-                    log(MOD_NAME .. ": " .. S.lines[1]
-                        .. (S.lines[2] ~= "" and (" / " .. S.lines[2]) or ""))
-                end
+        hook.Run("SwSh.Result", res)
+        S.lines = { res.lines[1].text, res.lines[2].text }
+        local text = S.lines[1] .. "\n" .. S.lines[2]
+        if text == S.pending then
+            S.stable = S.stable + 1
+        else
+            S.pending, S.stable = text, 1
+        end
+        if S.stable == STABLE and text ~= S.logged and text ~= "\n" then
+            S.logged = text
+            if SWSH.mod:get("log_text") then
+                log(MOD_NAME .. ": " .. S.lines[1]
+                    .. (S.lines[2] ~= "" and (" / " .. S.lines[2]) or ""))
             end
         end
     end
     -- The box closed: the next time the same words appear, print them again.
     if not S.open then S.pending, S.stable, S.logged = nil, 0, nil end
+    hook.Run("SwSh.Think")
 end
-
------------------------------------------------------------------- teaching --
--- Unknown glyphs read as "?". To teach them, open the overlay while a box is
--- on screen, type exactly what it says (lines separated by |) and press
--- Learn. Glyphs are matched to characters in order, so the count has to
--- agree; spaces don't count.
-local teachPanel = overlay.add("swsh.teach", {
-    mode = "menu", x = 40, y = 120, w = 560, h = 150,
-    children = {
-        { type = "label", x = 12, y = 10, text = "SwSh reader: teach glyphs (type the box's text, | between lines)" },
-        { type = "textbox", x = 12, y = 36, w = 536, h = 28,
-          placeholder = "How about it, Lucy? Let's race!|Bet I can make it..." },
-        { type = "button", x = 12, y = 74, w = 120, h = 28, text = "Learn" },
-        { type = "button", x = 142, y = 74, w = 160, h = 28, text = "Forget learned" },
-        { type = "label", x = 12, y = 112, w = 536, h = 34, text = "" },
-    },
-})
-teachPanel.children[3].onClick = function()
-    local t = teachPanel.children[2].text or ""
-    if not S.open then
-        S.teachMsg = "No dialogue box on screen."
-    elseif t == "" then
-        S.teachMsg = "Type the text first."
-    else
-        local a, b = t:match("^([^|]*)|?(.*)$")
-        S.teach = { a, b }
-        S.teachMsg = "Learning from the next read..."
-    end
-end
-teachPanel.children[4].onClick = function()
-    SWSH.forgetLearned()
-    shareAtlas()
-    S.teachMsg = "Learned glyphs cleared."
-end
-
-hook.Add("OverlayElement", "swsh.teach", function(el)
-    if el.id == "swsh.teach" then el.children[5].text = S.teachMsg end
-end)
 
 --------------------------------------------------------------------- debug --
 overlay.add("swsh.debug", {

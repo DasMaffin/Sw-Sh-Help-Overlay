@@ -24,7 +24,9 @@ function mod:get(k) return self.settings[k] end
 game = { register = function() return mod end, isActive = function() return true end }
 overlay = { els = {} }
 function overlay.add(id, spec) spec.id = id overlay.els[id] = spec return spec end
-hook = { Add = function() end }
+hook = { h = {} }
+function hook.Add(ev, name, fn) hook.h[ev] = hook.h[ev] or {} hook.h[ev][name] = fn end
+function hook.Run(ev, ...) for _, fn in pairs(hook.h[ev] or {}) do fn(...) end end
 camera = { pictureRect = function() return 0, 0, 0, 0 end }
 MOD_NAME = "swsh_text"
 '''
@@ -36,29 +38,28 @@ def main():
     h, w = Y.shape
     blob = Y.tobytes()
 
-    wk = lua54.LuaRuntime(encoding=None)
-    wk.execute(open(os.path.join(ROOT, "workers", "reader.lua"), "rb").read())
-    pending = []
-
-    L = lua54.LuaRuntime(encoding=None)
-    L.execute(MOCK)
-
     def tolua(rt, v):
         if lua54.lua_type(v) == "table":
             return rt.table_from({k: tolua(rt, x) for k, x in v.items()})
         return v
 
-    class Worker:
-        def share(self, name, value): wk.globals()[name] = tolua(wk, value)
+    def spawn(path):
+        p = os.path.join(ROOT, path.decode())
+        if not os.path.exists(p):
+            print("worker missing:", path.decode()); return None
+        wk = lua54.LuaRuntime(encoding=None)
+        wk.execute(open(p, "rb").read())
+        pending = []
         def post(self, job):
             pending.append(tolua(L, wk.globals().onJob(tolua(wk, job)))); return True
         def collect(self):
             out = L.table(*pending); pending.clear(); return out
-    W = Worker()
-    L.globals().worker = L.table_from({b"spawn": lambda p: L.table_from({
-        b"share": lambda self, n, v: W.share(n, v),
-        b"post": lambda self, j: W.post(j),
-        b"collect": lambda self: W.collect()})})
+        def share(self, n, v): wk.globals()[n] = tolua(wk, v)
+        return L.table_from({b"share": share, b"post": post, b"collect": collect})
+
+    L = lua54.LuaRuntime(encoding=None)
+    L.execute(MOCK)
+    L.globals().worker = L.table_from({b"spawn": spawn})
 
     class Frame:
         pass
@@ -71,6 +72,11 @@ def main():
 
     for f in sorted(glob.glob(os.path.join(ROOT, "lua", "autorun", "*.lua"))):
         L.execute(open(f, "rb").read())
+    drop = os.environ.get("SIM_DROP", "")    # pretend these aren't in the atlas
+    if drop:
+        L.execute(('local d = "%s" local a = {} for _, g in ipairs(SWSH.atlas) do '
+                   'if not d:find(g.ch, 1, true) then a[#a+1] = g end end SWSH.atlas = a'
+                   % drop).encode())
     mod = L.globals().SWSH[b"mod"]
     for _ in range(frames):
         mod[b"Think"](mod)

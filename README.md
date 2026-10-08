@@ -10,7 +10,8 @@ addons/Sw-Sh-Help-Overlay/
   lua/autorun/10_mod.lua     registration, settings, box geometry, learned glyphs
   lua/autorun/30_reader.lua  sampling (OnFrame), logging (Think), teach panel, debug overlay
   workers/reader.lua         the OCR, on its own thread
-  dev/                       offline tools and sample screenshots (not used by the engine)
+  lua/autorun/90_dev_teach.lua  DEV ONLY: glyph teaching (delete for shipping)
+  dev/                       DEV ONLY: tools, samples, teaching workers
 ```
 
 ## What it does (so far)
@@ -22,11 +23,14 @@ the typewriter animation has stopped, it prints them to the console:
 [Sw-Sh-Help-Overlay] Sw-Sh-Help-Overlay: How about it, Lucy? Let’s race! / Bet I can make it to my house first, what with you
 ```
 
-Characters it has never seen print as `?`. To teach them, open the overlay
-(Shift+Tab) while a box is showing, type exactly what the box says into
-*SwSh reader: teach glyphs* (put `|` between the two lines), and press
-**Learn**. Learned glyphs are saved in `data/<addon>/learned.txt` and used
-right away. You can teach any language this way.
+Characters it doesn't know yet print as `[?]`. While the dev layer is in
+(`lua/autorun/90_dev_teach.lua` + `dev/`, removed for shipping), it learns
+them by itself: a line with unknown letters is looked up in the game's own
+text, and if only one answer fits, the letters are learned, logged
+(`DEV learned new letter 'M' from "Meeeh?"`) and used from then on. You can
+also teach by hand in the overlay. Learned letters land in
+`data/<addon>/learned.txt`; send that file in so they get baked into the
+shipped atlas for everyone.
 
 Settings: *Print dialogue text to the console* and *Show what the reader sees*
 (outlines the sampled lines and shows the live reading).

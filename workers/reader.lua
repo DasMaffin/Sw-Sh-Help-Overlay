@@ -26,7 +26,11 @@ local INK    = 0.5               -- fraction of the line's contrast that is ink
 local MIN_RANGE = 60             -- less contrast than this: nothing to read
 local SPACE  = 0.17              -- a gap wider than this * lineH is a space
 local SHAPE_W = 30               -- weight of width/top/bottom differences
-local UNKNOWN = 3.0              -- a best distance above this reads as "?"
+local UNKNOWN = 3.0              -- a best distance above this is unknown
+-- What an unknown glyph prints as. Not a bare "?": the game prints plenty of
+-- real question marks, and the two must not be confused in a log. `raw`
+-- carries "\1" instead, one byte per unknown glyph, for code to work with.
+local MISSING = "[?]"
 
 -- One line: rows is an array of strings, each `w` bytes of luma.
 -- Returns the glyphs found, left to right: { x0, x1, f, wn, gapBefore }.
@@ -126,27 +130,34 @@ end
 
 local function readLine(rows, w, atlas)
     local glyphs = segment(rows, w)
-    local out, worst = {}, 0
+    local out, raw, worst, missing = {}, {}, 0, 0
     for i, g in ipairs(glyphs) do
-        if i > 1 and g.gap > SPACE then out[#out + 1] = " " end
+        if i > 1 and g.gap > SPACE then
+            out[#out + 1] = " "; raw[#raw + 1] = " "
+        end
         local ch, d = match(g, atlas)
-        if not ch or d > UNKNOWN then ch = "?" end
         if d > worst then worst = d end
-        out[#out + 1] = ch
+        if not ch or d > UNKNOWN then
+            missing = missing + 1
+            out[#out + 1] = MISSING; raw[#raw + 1] = "\1"
+        else
+            out[#out + 1] = ch; raw[#raw + 1] = ch
+        end
     end
-    return table.concat(out), glyphs, worst
+    return table.concat(out), glyphs, worst, missing, table.concat(raw)
 end
 
 -- job = { seq, w, lines = { {rows...}, {rows...} }, learn = bool }
--- With learn set, the glyphs' fingerprints come back too, so the main thread
--- can label them against text the user typed in.
+-- Each line comes back as { text, raw, worst, missing, glyphs? }.
 function onJob(job)
     local atlas = ATLAS or {}
     local res = { seq = job.seq, lines = {} }
     for i, rows in ipairs(job.lines) do
-        local text, glyphs, worst = readLine(rows, job.w, atlas)
-        local L = { text = text, worst = worst }
-        if job.learn then
+        local text, glyphs, worst, missing, raw = readLine(rows, job.w, atlas)
+        local L = { text = text, raw = raw, worst = worst, missing = missing }
+        -- Fingerprints come back when asked for, or when something was
+        -- unknown -- so whoever wants to learn it has the shape in hand.
+        if job.learn or missing > 0 then
             L.glyphs = {}
             for k, g in ipairs(glyphs) do L.glyphs[k] = { w = g.wn, t = g.tn, b = g.bn, f = g.f } end
         end

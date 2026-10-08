@@ -29,40 +29,14 @@ SWSH.BOX = {
               { y = 878, x0 = 450, x1 = 1400 } },   -- a row
 }
 
---------------------------------------------------------- learned glyphs --
--- Glyphs taught in game are kept in data/<MOD_NAME>/learned.txt, one per
--- line: char <TAB> w <TAB> t <TAB> b <TAB> f1,f2,...  (no load() in the
--- sandbox, so it is a format simple enough to parse by hand).
-local LEARNED = "learned.txt"
-
-function SWSH.loadLearned()
-    local out, s = {}, data.read(LEARNED)
-    if not s then return out end
-    for line in s:gmatch("[^\n]+") do
-        local ch, w, t, b, fs = line:match("^([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t(.+)$")
-        if ch then
-            local f = {}
-            for v in fs:gmatch("[^,]+") do f[#f + 1] = tonumber(v) end
-            out[#out + 1] = { ch = ch, w = tonumber(w), t = tonumber(t),
-                              b = tonumber(b), f = f }
-        end
-    end
-    return out
-end
-
-function SWSH.saveLearned(g)
-    local f = {}
-    for i, v in ipairs(g.f) do f[i] = string.format("%.3g", v) end
-    data.append(LEARNED, string.format("%s\t%.4f\t%.4f\t%.4f\t%s\n",
-        g.ch, g.w, g.t, g.b, table.concat(f, ",")))
-end
-
-function SWSH.forgetLearned() data.delete(LEARNED) end
-
--- The atlas the worker matches against: shipped glyphs plus learned ones.
+-- The atlas the worker matches against: the shipped glyphs, plus whatever
+-- SWSH.extraGlyphs() returns. Only the dev teaching layer (lua/autorun/
+-- 90_dev_teach.lua) defines that; the shipping build has the atlas alone.
 function SWSH.fullAtlas()
     local a = {}
     for _, g in ipairs(SWSH.atlas or {}) do a[#a + 1] = g end
-    for _, g in ipairs(SWSH.loadLearned()) do a[#a + 1] = g end
+    if SWSH.extraGlyphs then
+        for _, g in ipairs(SWSH.extraGlyphs()) do a[#a + 1] = g end
+    end
     return a
 end
