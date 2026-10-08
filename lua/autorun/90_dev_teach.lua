@@ -128,15 +128,23 @@ end)
 ------------------------------------------------------------ manual teach --
 local teachText, teachMsg = nil, ""
 
+-- The engine's font is about as wide as it is tall (DrawContext: "each glyph
+-- is ~size wide"), so everything is sized from F rather than guessed.
+local F = 14
 local panel = overlay.add("swsh.dev.teach", {
-    mode = "menu", x = 40, y = 120, w = 560, h = 150,
+    mode = "menu", x = 40, y = 120, w = 640, h = 196,
     children = {
-        { type = "label", x = 12, y = 10, text = "DEV: teach glyphs (type the box's text, | between lines)" },
-        { type = "textbox", x = 12, y = 36, w = 536, h = 28,
-          placeholder = "How about it, Lucy? Let's race!|Bet I can make it..." },
-        { type = "button", x = 12, y = 74, w = 120, h = 28, text = "Learn" },
-        { type = "button", x = 142, y = 74, w = 160, h = 28, text = "Forget learned" },
-        { type = "label", x = 12, y = 112, w = 536, h = 34, text = "" },
+        { type = "label", x = 12, y = 10, w = 616, h = 2 * (F + 3),
+          text = "DEV: teach glyphs. Type exactly what the box says, | between the two lines.",
+          style = { font = F } },
+        { type = "textbox", x = 12, y = 48, w = 616, h = 28, style = { font = F },
+          placeholder = "How about it, Lucy?|Bet I can..." },
+        { type = "button", x = 12, y = 86, w = 7 * F, h = 28, text = "Learn",
+          style = { font = F } },
+        { type = "button", x = 12 + 7 * F + 12, y = 86, w = 16 * F, h = 28,
+          text = "Forget learned", style = { font = F } },
+        { type = "label", x = 12, y = 124, w = 616, h = 4 * (F + 3), text = "",
+          style = { font = F } },
     },
 })
 panel.children[3].onClick = function()
