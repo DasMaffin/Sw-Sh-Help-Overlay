@@ -1,6 +1,8 @@
 # Notes for future sessions
 
 - **Branch: work and push on `main` only** (user's instruction).
+- **No engine work from this repo.** ModdableCaptureCardProvider is read-only
+  reference here; if something needs an engine change, say so and stop.
 - The repo root IS the addon folder: users clone it into MCCP's `addons/`.
   Engine + modding wiki live in DasMaffin/ModdableCaptureCardProvider
   (`docs/wiki/*.html`); its `addons_backup/pkmn_stats` is the FireRed mod the
