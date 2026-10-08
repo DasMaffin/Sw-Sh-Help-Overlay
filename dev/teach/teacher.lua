@@ -53,19 +53,53 @@ local function search(pat)
     return answer
 end
 
+local solve
+
 function onJob(job)
     -- { charset = true }: every character this language's text uses.
     if job.charset then return { charset = CHARSET } end
-    local raw = job.raw
+    local res = solve(job.raw)
+    if res.chars or res.why ~= "not in the game text" then
+        res.key = job.key
+        return res
+    end
+    -- Not found as it reads. The screen may be showing a name (or number)
+    -- where the game text has a placeholder: retry with each distinct whole
+    -- word of the reading standing in for "\3" -- every occurrence of it,
+    -- since a name is the same each time. All words that fit must agree.
+    local found, seen = nil, {}
+    for word in job.raw:gmatch("%w+") do
+        if not seen[word] then
+            seen[word] = true
+            local sub = (" " .. job.raw .. " "):gsub("(%W)" .. word .. "(%W)", "%1\3%2")
+            sub = sub:gsub("(%W)" .. word .. "(%W)", "%1\3%2"):sub(2, -2)
+            local r = solve(sub)
+            if r.chars then
+                local key = table.concat(r.chars, "\0")
+                if found and found.key ~= key then
+                    return { key = job.key, why = "ambiguous" }
+                end
+                found = found or { key = key, chars = r.chars, hits = r.hits, word = word }
+            end
+        end
+    end
+    if found then
+        return { key = job.key, chars = found.chars, hits = found.hits,
+                 placeholder = found.word }
+    end
+    return { key = job.key, why = "not in the game text" }
+end
+
+function solve(raw)
     local pieces, unknown, known = {}, 0, 0
     for piece, mark in (raw .. "\2"):gmatch("([^\1\2]*)([\1\2])") do
         pieces[#pieces + 1] = escape(piece)
         known = known + utf8.len((piece:gsub(" ", "")))
         if mark == "\1" then unknown = unknown + 1 end
     end
-    if unknown == 0 then return { key = job.key, why = "nothing unknown" } end
-    if unknown > MAX_UNKNOWN then return { key = job.key, why = "too many unknowns" } end
-    if known < MIN_KNOWN then return { key = job.key, why = "too little known text" } end
+    if unknown == 0 then return { why = "nothing unknown" } end
+    if unknown > MAX_UNKNOWN then return { why = "too many unknowns" } end
+    if known < MIN_KNOWN then return { why = "too little known text" } end
 
     -- Fewest pairs first: a reading where every unknown is one character is
     -- the likely one, and only if none fits are touching pairs considered.
@@ -84,14 +118,14 @@ function onJob(job)
                 parts[#parts + 1] = pieces[unknown + 1]
                 local a = search(table.concat(parts))
                 if a == false or (a and answer and a.key ~= answer.key) then
-                    return { key = job.key, why = "ambiguous" }
+                    return { why = "ambiguous" }
                 end
                 answer = answer or a
             end
         end
         if answer then
-            return { key = job.key, chars = answer.chars, hits = answer.hits }
+            return { chars = answer.chars, hits = answer.hits }
         end
     end
-    return { key = job.key, why = "not in the game text" }
+    return { why = "not in the game text" }
 end

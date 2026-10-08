@@ -32,8 +32,11 @@ def messages(dump, lang):
                 if (not line or line.startswith("~~~") or line.startswith("Text File :")
                         or re.fullmatch(r"\[~ \d+\]", line)):
                     continue
-                # Placeholders (names, numbers, page breaks) end a run of
-                # literal text: nothing on screen can be matched across them.
+                # Page waits (VAR 0114) end a run of literal text. Every other
+                # placeholder -- the player's or rival's name, a Pokemon, a
+                # number -- becomes "\3", which the teacher can line up with
+                # whatever word the screen shows there.
+                line = re.sub(r"\[VAR (?!0114)[^\]]*\]", "\x03", line)
                 for seg in re.split(r"\[VAR [^\]]*\]", line):
                     seg = seg.strip()
                     if seg and seg not in seen:

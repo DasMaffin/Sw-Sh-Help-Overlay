@@ -138,8 +138,10 @@ hook.Add("SwSh.Think", "swsh.dev.selfteach", function()
             for j, c in ipairs(ans.chars) do
                 if keep(c, glyphs[j]) then
                     n = n + 1
-                    log(string.format("%s: DEV learned new letter '%s' from \"%s\" (read as \"%s\")",
-                                      MOD_NAME, c, line, show(ans.key)))
+                    log(string.format("%s: DEV learned new letter '%s' from \"%s\" (read as \"%s\"%s)",
+                                      MOD_NAME, c, line, show(ans.key),
+                                      ans.placeholder and ("; \"" .. ans.placeholder
+                                          .. "\" taken as a name") or ""))
                 end
             end
             if n > 0 then SWSH.reader.reshare(); statDue = true end
