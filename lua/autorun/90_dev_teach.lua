@@ -75,6 +75,30 @@ if not teacher then
         .. ".lua (build it with dev/gen_teach.py)")
 end
 
+-- How many of the language's characters the reader knows, for the line
+-- printed after something was learned: "[glyphs 34/97 en]".
+local charset, statDue = nil, false
+if teacher then teacher:post({ charset = true }) end
+
+local function knownStat()
+    if not charset then return "" end
+    local have = {}
+    for _, g in ipairs(SWSH.fullAtlas()) do have[g.ch] = true end
+    local n, total = 0, 0
+    for _, cp in utf8.codes(charset) do
+        total = total + 1
+        if have[utf8.char(cp)] then n = n + 1 end
+    end
+    return string.format("  [glyphs %d/%d %s]", n, total, lang)
+end
+
+function SWSH.logSuffix(res)
+    -- Only once everything in the box is known, and only after learning.
+    if not statDue or res.lines[1].missing + res.lines[2].missing > 0 then return "" end
+    statDue = false
+    return knownStat()
+end
+
 local tried   = {}           -- raw line -> true: asked already, don't repeat
 local waiting = {}           -- raw line -> the unknown glyphs' fingerprints
 local lastRaw = { "", "" }   -- per line, to only ask about a stable reading
@@ -103,6 +127,7 @@ end)
 hook.Add("SwSh.Think", "swsh.dev.selfteach", function()
     if not teacher then return end
     for _, ans in ipairs(teacher:collect()) do
+        if ans.charset then charset = ans.charset; goto continue end
         local glyphs = waiting[ans.key]
         waiting[ans.key] = nil
         if ans.chars and glyphs and #ans.chars == #glyphs then
@@ -117,11 +142,12 @@ hook.Add("SwSh.Think", "swsh.dev.selfteach", function()
                                       MOD_NAME, c, line, show(ans.key)))
                 end
             end
-            if n > 0 then SWSH.reader.reshare() end
+            if n > 0 then SWSH.reader.reshare(); statDue = true end
         elseif ans.why then
             log(string.format("%s: DEV could not learn from \"%s\": %s",
                               MOD_NAME, show(ans.key), ans.why))
         end
+        ::continue::
     end
 end)
 
@@ -196,7 +222,7 @@ hook.Add("SwSh.Result", "swsh.dev.manual", function(res)
             end
         end
     end
-    if added > 0 then SWSH.reader.reshare() end
+    if added > 0 then SWSH.reader.reshare(); statDue = true end
     teachMsg = (#msgs > 0 and (table.concat(msgs, "; ") .. ". ") or "")
                .. "Learned " .. added .. " glyphs."
     log(MOD_NAME .. ": DEV " .. teachMsg)

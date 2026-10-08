@@ -10,7 +10,8 @@
 -- Hooks for other files (the dev teaching layer uses them):
 --   "SwSh.Result" (res)    every reading, as the worker returned it
 --   "SwSh.Think"  ()       once per Think, after results are applied
--- and SWSH.reader.requestGlyphs() / SWSH.reader.reshare().
+-- and SWSH.reader.requestGlyphs() / SWSH.reader.reshare(); SWSH.logSuffix,
+-- if someone defines it, is appended to each printed text line.
 
 local S = {
     lines   = { "", "" },  -- the latest reading
@@ -111,8 +112,9 @@ function SWSH.mod:Think()
         if S.stable == STABLE and text ~= S.logged and text ~= "\n" then
             S.logged = text
             if SWSH.mod:get("log_text") then
+                local suffix = SWSH.logSuffix and SWSH.logSuffix(res) or ""
                 log(MOD_NAME .. ": " .. S.lines[1]
-                    .. (S.lines[2] ~= "" and (" / " .. S.lines[2]) or ""))
+                    .. (S.lines[2] ~= "" and (" / " .. S.lines[2]) or "") .. suffix)
             end
         end
     end
