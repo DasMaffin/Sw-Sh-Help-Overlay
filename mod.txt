@@ -1,0 +1,2 @@
+# What this mod is, for the engine. Read back as MOD_VERSION.
+version = 0.1.0
