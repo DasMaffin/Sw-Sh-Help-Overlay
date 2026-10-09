@@ -37,6 +37,9 @@ How it works:
 - Only `teach_en.lua` is generated so far; other languages:
   `python3 dev/gen_teach.py <swsh-text checkout> de fr ...`.
 
+Keep README.md's "Log messages" table in sync whenever a log line is added
+or changed.
+
 Dev tooling: `pip install lupa pillow numpy`; `dev/sim.py <1080p screenshot>`
 runs the whole addon under a mocked engine (`SIM_DROP=xyz` hides atlas glyphs
 to exercise teaching).

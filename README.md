@@ -7,30 +7,53 @@ app's `addons/` folder; the repo root is the addon folder:
 addons/Sw-Sh-Help-Overlay/
   mod.txt
   lua/autorun/05_atlas.lua   glyph fingerprints (generated, see dev/)
-  lua/autorun/10_mod.lua     registration, settings, box geometry, learned glyphs
-  lua/autorun/30_reader.lua  sampling (OnFrame), logging (Think), teach panel, debug overlay
+  lua/autorun/10_mod.lua     registration, settings, box geometry
+  lua/autorun/30_reader.lua  sampling (OnFrame), logging (Think), debug overlay
   workers/reader.lua         the OCR, on its own thread
-  lua/autorun/90_dev_teach.lua  DEV ONLY: glyph teaching (delete for shipping)
+  lua/autorun/90_dev_teach.lua  DEV ONLY: glyph teaching + teach panel (delete for shipping)
   dev/                       DEV ONLY: tools, samples, teaching workers
 ```
 
 ## What it does (so far)
 
 When the white dialogue box is on screen it reads the two lines of text. Once
-the typewriter animation has stopped, it prints them to the console:
+the typewriter animation has stopped, it prints them to the console, once per
+box (the same text prints again only after the box has closed):
 
 ```
-[Sw-Sh-Help-Overlay] Sw-Sh-Help-Overlay: How about it, Lucy? Let’s race! / Bet I can make it to my house first, what with you
+[mod] Sw-Sh-Help-Overlay: How about it, Lucy? Let’s race! / Bet I can make it to my house first, what with you
 ```
 
-Characters it doesn't know yet print as `[?]`. While the dev layer is in
-(`lua/autorun/90_dev_teach.lua` + `dev/`, removed for shipping), it learns
-them by itself: a line with unknown letters is looked up in the game's own
-text, and if only one answer fits, the letters are learned, logged
-(`DEV learned new letter 'M' from "Meeeh?"`) and used from then on. You can
-also teach by hand in the overlay. Learned letters land in
-`data/<addon>/learned.txt`; send that file in so they get baked into the
-shipped atlas for everyone.
+Characters it doesn't know yet print as `[?]` (a real `?` is the game's own
+question mark).
+
+## Log messages
+
+| Message | Meaning |
+|---|---|
+| `<line 1> / <line 2>` | A finished box. |
+| `... [glyphs 42/109 en]` | Appended to the first finished box after letters were learned: characters the reader knows / distinct characters in that language's game text. Touching pairs (`w.`) don't count. |
+| `DEV learned new letter 'M' from "Meeeh?" (read as "[?]eeeh?")` | Self-teaching found the letter. A pair like `'w.'` means two characters whose ink touches. `; "Lucy" taken as a name` means that word matched a name placeholder in the game text. |
+| `DEV learned new letter 'l' (typed in; was read as "I")` | Learned from the manual teach panel. |
+| `DEV could not learn from "...": <reason>` | `not in the game text`, `ambiguous` (several answers fit), `too many unknowns` (more than 3), `too little known text`. It waits for another box. |
+| `DEV Learned N glyphs.` / `DEV learned glyphs cleared` | Teach panel results. |
+| `DEV self-teaching is off -- no dev/teach/teach_<lang>.lua` | No game text for the chosen language. |
+| `frame format ... is not supported yet (NV12 only)` | Capture isn't NV12; nothing is read. |
+
+## Self-teaching (DEV ONLY)
+
+While the dev layer is in (`lua/autorun/90_dev_teach.lua` + `dev/`, removed
+for shipping), unknown letters are learned by themselves: a line with `[?]`
+is looked up in the game's own text (CPokemon/swsh-text), and if only one
+answer fits, the letters are learned, logged and used from then on. Settings
+*DEV: learn unknown letters from the game's text* and *DEV: game language*
+(restart to apply). You can also teach by hand in the overlay (Shift+Tab).
+
+Learned letters land in
+`ModdableCaptureCardProvider\data\Sw-Sh-Help-Overlay\learned.txt`. To get
+them baked into the shipped atlas for everyone, copy that file to
+`dev/learned/<name>.txt` and push (or send it in); after the baked update,
+press *Forget learned* and delete your `dev/learned` copy.
 
 Settings: *Print dialogue text to the console* and *Show what the reader sees*
 (outlines the sampled lines and shows the live reading).
