@@ -51,7 +51,7 @@ end
 SWSH.mod:addSetting("log_text", "Print what is read to the console", "bool", nil, true)
 -- Off: only battle text is read. On: dialogue, system and cutscene text too.
 SWSH.mod:addSetting("read_all", "Read text outside battles too", "bool", nil, false)
-SWSH.mod:addSetting("show_stats", "Show your Pokemon's base stats in battle", "bool", nil, true)
+SWSH.mod:addSetting("show_stats", "Show both Pokemon's stats in battle", "bool", nil, true)
 -- Outlines the lines being read and shows the latest reading over the picture.
 SWSH.mod:addSetting("debug", "Show what the reader sees", "bool", nil, false)
 
@@ -94,6 +94,18 @@ SWSH.BATTLE = {
     -- Its moves and buttons are white text too: not to be read as subtitles.
     panel  = { { y = 930, x0 = 200, x1 = 440 }, { y = 975, x0 = 200, x1 = 440 },
                { y = 1040, x0 = 200, x1 = 420 } },
+}
+
+-- What is read off the two HP panels while a battle menu is up (one text line
+-- each): name (the gender sign comes along; the Pokedex lookup forgives it),
+-- "Lv.6" (whole: a lone digit reads badly),
+-- and on yours the HP as "8/23".
+SWSH.HPBOX = {
+    mine = { name = { x0 = 18,   x1 = 330,  y0 = 934, y1 = 978 },
+             lv   = { x0 = 355,  x1 = 470,  y0 = 936, y1 = 982 },
+             hp   = { x0 = 18,   x1 = 240,  y0 = 995, y1 = 1045 } },
+    foe  = { name = { x0 = 1462, x1 = 1700, y0 = 44,  y1 = 92 },
+             lv   = { x0 = 1800, x1 = 1915, y0 = 40,  y1 = 86 } },
 }
 
 -- The dark system message box ("Scorbunny has been added to your party.").

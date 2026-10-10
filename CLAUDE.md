@@ -20,8 +20,10 @@
 - The reader is asynchronous: OnFrame decides which box is up (cheap pixel
   probes) and calls `ocr.read`; Think calls `ocr.poll` and prints. By default
   only battle text is read (setting `read_all` adds dialogue/sys/subtitles).
-  Battle text feeds `40_battle.lua` (who's fighting) -> base-stat panel above
-  the player's HP panel while `SWSH.BATTLE.panel` (battle menu) is white.
+  While a battle menu is up (`SWSH.BATTLE.panel` white) the HP panels
+  (`SWSH.HPBOX`: names, "Lv.N" read whole, your "hp/max") are read instead.
+  Both feed `40_battle.lua` -> YOURS/ENEMY stat panels (pkmn_stats' look):
+  ranges for the level; yours IV 0-31 EV 0-252, enemy EV 0; HP exact from max.
 - `lua/autorun/05_dex.lua` is generated from Showdown's pokedex.json (today's stats +
   Showdown's gen8 mod = Sword/Shield numbers; keys = lowercase alnum names,
   Galarian forms preferred); regenerate with

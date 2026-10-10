@@ -93,10 +93,13 @@ class FakeOcr:
         # doesn't. Readings here are for testing the Lua side, not the OCR.)
         med = int(np.median(grey))
         p = np.pad(grey, ((8, 8), (16, 16)), constant_values=med)
-        r, _ = self.engine(np.stack([p] * 3, -1), use_det=False, use_cls=False, use_rec=True)
-        if not r:
+        # The recogniser itself: this package ignores use_det=False and runs
+        # detection on any crop that isn't long and thin.
+        r = self.engine.text_recognizer([np.stack([p] * 3, -1)])
+        r = r[0] if isinstance(r, tuple) else r
+        if not r or not r[0][0].strip():
             return "", 0.0
-        return r[0][1].strip(), float(r[0][2])
+        return r[0][0].strip(), float(r[0][1])
 
     def read(self, frame, regions, opts=None):
         if self.job is not None:

@@ -86,7 +86,7 @@ end
 -------------------------------------------------------------------- read --
 local frameNo, warned = 0, false
 local see                -- see(reading or nil), under "collect"
-local jobKind = {}       -- job id -> what it read ("box", "sys", "sub")
+local jobKind = {}       -- job id -> what it read ("box", "battle", "sys", "sub", "panel")
 
 function SWSH.mod:OnFrame(frame)
     frameNo = frameNo + 1
@@ -123,10 +123,19 @@ function SWSH.mod:OnFrame(frame)
         for i, band in ipairs(SWSH.SYS.lines) do
             regions[#regions + 1] = region(i, SWSH.SYS.x0, SWSH.SYS.x1, band, sx, sy)
         end
-    elseif S.menu or not all then
-        -- Nothing to read. (In a battle menu its white move names would pass
-        -- for a subtitle.)
+    elseif S.menu then
+        -- A battle menu: no text box, but the HP panels say who is fighting
+        -- and at what level (40_battle.lua). Its white move names would pass
+        -- for a subtitle, so no subtitles here.
         see(nil)
+        kind = "panel"
+        for side, p in pairs(SWSH.HPBOX) do
+            for what, r in pairs(p) do
+                regions[#regions + 1] = region(side .. "." .. what, r.x0, r.x1, { r.y0, r.y1 }, sx, sy)
+            end
+        end
+    elseif not all then
+        see(nil)                            -- nothing to read
         return
     else
         -- No box: maybe a cutscene subtitle. Only the OCR's confidence can
@@ -198,6 +207,15 @@ local function apply(res)
     jobKind[res.id] = nil
     if res.error then
         SWSH.log(SWSH.LV.important, SWSH.C.error, "OCR failed: ", res.error)
+        return
+    end
+    if kind == "panel" then              -- HP panels: key -> text, for 40_battle
+        local got = {}
+        for _, r in ipairs(res.regions) do
+            local l = r.lines[1]
+            if l and l.score >= MIN_SCORE then got[r.key] = l.text end
+        end
+        if SWSH.onPanels then SWSH.onPanels(got) end
         return
     end
     local min = kind == "sub" and SUB_SCORE or MIN_SCORE
