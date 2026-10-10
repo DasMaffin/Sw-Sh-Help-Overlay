@@ -31,6 +31,7 @@ SWSH.C = {
     letter  = { 255, 220, 100 },   -- the letter itself
     name    = { 255, 200, 120 },   -- the speaker's name
     cutscene = { 170, 150, 220 },  -- the [cutscene] tag
+    system   = { 140, 190, 230 },  -- the [system] tag
     warn    = { 255, 170,  80 },   -- couldn't learn / something's off
     error   = { 255,  90,  90 },
 }
@@ -87,6 +88,22 @@ SWSH.BOX = {
               { y = 878, x0 = 450, x1 = 1400 } },   -- a row
 }
 
+-- The system message box ("Scorbunny has been added to your party."): dark
+-- grey, centred, white text. The type is smaller than the dialogue's, so
+-- each line is 51 rows instead of the box's 67, which makes its glyphs reach
+-- the atlas at the dialogue's size. 51 is measured, not estimated: it is
+-- where this box's letters match the dialogue's best (52 or 50 already
+-- loses letters). Baselines ~922 and ~982. x1 stops short of the "next"
+-- arrow and the darker right stripe.
+SWSH.SYS = {
+    x0 = 530, x1 = 1376,
+    lines = { { 888, 939 }, { 948, 999 } },
+    -- Always the box's flat grey while it is up: strips above and below
+    -- the text.
+    ground = { { y = 870, x0 = 600, x1 = 1300 },
+               { y = 1004, x0 = 600, x1 = 1300 } },
+}
+
 -- Cutscene subtitles: white text straight over the scene, no box, no
 -- outline, a little lower and further right than the box's text (same font,
 -- same size, same line spacing). x0 is even so the window starts on a
@@ -115,7 +132,7 @@ SWSH.NAME = {
 -- grid...): fingerprints of two versions don't compare, and a learned glyph
 -- from an older reader would fail to match, or match the wrong letter.
 -- Learned glyphs carry it; dev/gen_atlas.py rebuilds the shipped atlas.
-SWSH.FEATURES = 4
+SWSH.FEATURES = 5
 
 -- The atlas the worker matches against: the shipped glyphs, plus whatever
 -- SWSH.extraGlyphs() returns. Only the dev teaching layer (lua/autorun/

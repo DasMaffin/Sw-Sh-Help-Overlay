@@ -17,8 +17,9 @@ addons/Sw-Sh-Help-Overlay/
 ## What it does (so far)
 
 When the white dialogue box is on screen it reads the two lines of text, and
-the speaker's name from the dark plate above it when there is one. Without a
-box it looks for cutscene subtitles: white text straight over the scene. Once
+the speaker's name from the dark plate above it when there is one. It also reads
+the dark system message box, and, with no box at all, cutscene subtitles
+(white text straight over the scene). Once
 the typewriter animation has stopped, it prints them to the console, once per
 box (the same text prints again only after the box has closed):
 
@@ -46,6 +47,7 @@ Older builds get the same lines without colour or levels.
 |---|---|
 | `<line 1> / <line 2>` | A finished box. |
 | `Hop: <line 1> / <line 2>` | A finished box with a speaker's name plate (name in orange). |
+| `[system] <line 1> / <line 2>` | The dark system message box ("Scorbunny has been added to your party."). |
 | `[cutscene] <line 1> / <line 2>` | A cutscene subtitle (white text over the scene, no box). |
 | `... [glyphs 42/109 en]` | Appended to the first finished box after letters were learned: characters the reader knows / distinct characters in that language's game text. Touching pairs (`w.`) don't count. |
 | `DEV learned new letter 'M' from "Meeeh?" (read as "[?]eeeh?")` | Self-teaching found the letter. A pair like `'w.'` means two characters whose ink touches. `; "Lucy" taken as a name` means that word matched a name placeholder in the game text. |

@@ -68,6 +68,12 @@ local function boxOpen(frame, sx, sy)
     return lo >= 170 and hi - lo <= 40
 end
 
+-- Is the system message box there? Its grey is flat, darker than mid-grey.
+local function sysOpen(frame, sx, sy)
+    local lo, hi = probeRange(frame, SWSH.SYS.ground, sx, sy)
+    return hi <= 90 and lo >= 25 and hi - lo <= 25
+end
+
 -- Is the name plate there? Its ground is dark and nearly flat.
 local function plateOpen(frame, sx, sy)
     local lo, hi = probeRange(frame, SWSH.NAME.plate, sx, sy)
@@ -119,6 +125,18 @@ function SWSH.mod:OnFrame(frame)
     S.open = boxOpen(frame, sx, sy)
     local B, N = SWSH.BOX, SWSH.NAME
     local lines = {}
+    if not S.open and sysOpen(frame, sx, sy) then
+        for i, band in ipairs(SWSH.SYS.lines) do
+            local L = grab(frame, SWSH.SYS.x0, SWSH.SYS.x1, band, sx, sy)
+            L.style, L.light = "y", true
+            lines[i] = L
+        end
+        seq = seq + 1
+        if reader:post({ seq = seq, lines = lines, learn = wantGlyphs, kind = "sys" }) then
+            wantGlyphs = false
+        end
+        return
+    end
     if not S.open then
         -- No box: maybe a cutscene subtitle. Whether there is one is for
         -- the worker to say, from the text itself.
@@ -166,7 +184,8 @@ function SWSH.mod:Think()
         S.lines = { res.lines[1].text, res.lines[2].text }
         S.name = res.lines[3] and res.lines[3].text or ""
         local shown = S.lines[1] ~= "" or S.lines[2] ~= ""
-        S.kind = shown and res.kind or (res.kind == "box" and "box" or nil)
+        S.kind = shown and res.kind
+                 or ((res.kind == "box" or res.kind == "sys") and res.kind or nil)
         local text = S.name .. "\n" .. S.lines[1] .. "\n" .. S.lines[2]
         if text == S.pending then
             S.stable = S.stable + 1
@@ -182,6 +201,9 @@ function SWSH.mod:Think()
                 if res.kind == "sub" then
                     table.insert(args, 1, "[cutscene] ")
                     table.insert(args, 1, SWSH.C.cutscene)
+                elseif res.kind == "sys" then
+                    table.insert(args, 1, "[system] ")
+                    table.insert(args, 1, SWSH.C.system)
                 end
                 if S.name ~= "" then
                     local named = SWSH.marked(S.name, SWSH.C.name)
@@ -200,7 +222,7 @@ function SWSH.mod:Think()
         end
         -- Nothing on screen any more (box closed, subtitle gone): the next
         -- time the same words appear, print them again.
-        if not shown and res.kind ~= "box" then S.pending, S.stable, S.logged = nil, 0, nil end
+        if not shown and res.kind == "sub" then S.pending, S.stable, S.logged = nil, 0, nil end
     end
     hook.Run("SwSh.Think")
 end

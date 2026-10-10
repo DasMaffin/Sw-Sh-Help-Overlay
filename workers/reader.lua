@@ -32,10 +32,16 @@ local WEIGHT  = 0.0845           -- the regular weight: mean stroke / line
                                  -- height (dialogue box and subtitles)
 local ABOVE  = 0.69               -- baseline window: this * lineH above it
 local SPACE  = 0.17              -- a gap wider than this * lineH is a space
-local SHAPE_W = 30               -- weight of width/top/bottom differences
-local UNKNOWN = 3.0              -- a best distance above this is unknown...
-local CLEAR   = 2.0              -- ...unless it is within 2x UNKNOWN AND the
-                                 -- next other letter is CLEAR times further
+local SHAPE_W = 30               -- weight of a width difference...
+local VERT_W  = 60               -- ...and of top/bottom: measured to a
+                                 -- fraction of a pixel from the baseline,
+                                 -- they are the steadiest thing we have,
+                                 -- and all that tells 'l' from 'I'
+local MINW    = 0.3              -- fingerprint box: at least this * line wide
+local UNKNOWN = 3.0              -- a best distance above this is unknown.
+-- No "close enough": a letter the atlas doesn't have must come out "[?]",
+-- never as its nearest look-alike. (A rule that accepted a near match when
+-- nothing else came close once read an unseen 'N' as 'H': "Hice one!".)
 -- What an unknown glyph prints as. Not a bare "?": the game prints plenty of
 -- real question marks, and the two must not be confused in a log. `raw`
 -- carries "\1" instead, one byte per unknown glyph, for code to work with.
@@ -271,24 +277,55 @@ local function segment(rows, w, light, over)
     local glyphs, lastEnd = {}, nil
     for _, gr in ipairs(groups) do
         local x, x2 = gr.x0, gr.x1
-        -- Fingerprint: area-average of ink over a GR x GC grid laid over
-        -- the glyph's own columns and the baseline window's rows. Only this
+        local ids = gr.ids
+        -- The strongest of this glyph's ink (or unowned anti-aliasing) in a
+        -- block of pixels -- used to find its edges to a fraction of a pixel.
+        local function edgeInk(ya, yb, xa, xb)
+            local m = 0
+            for yy = ya, yb do
+                local row, lrow = ink[yy], label[yy]
+                if row then
+                    for xx = xa, xb do
+                        local l, v = lrow[xx], row[xx]
+                        if v and v > m and (not l or ids[l]) then m = v end
+                    end
+                end
+            end
+            return math.min(m / INK, 1)
+        end
+        -- EDGES TO A FRACTION OF A PIXEL. The blob's extent is whole pixels
+        -- at the INK cutoff; the faint anti-aliasing just outside it says how
+        -- far into the next pixel the letter really reaches. That is what
+        -- tells 'l' from 'I' in this font (the 'l' rises ~2px higher), and
+        -- what keeps a letter's measurements steady as it moves by less
+        -- than a pixel.
+        local xl = x - edgeInk(gr.y0, gr.y1, x - 1, x - 1)
+        local xr = x2 + 1 + edgeInk(gr.y0, gr.y1, x2 + 1, x2 + 1)
+        local yt = gr.y0 - edgeInk(gr.y0 - 1, gr.y0 - 1, x, x2)
+        local yb = gr.y1 + 1 + edgeInk(gr.y1 + 1, gr.y1 + 1, x, x2)
+        local gw = xr - xl
+
+        -- Fingerprint: area-average of ink over a GR x GC grid laid over a
+        -- box around the glyph and the baseline window's rows. Only this
         -- glyph's ink counts (plus the faint anti-aliasing no blob owns), so
         -- a neighbour reaching into these columns doesn't leak in.
-        local gw = x2 - x + 1
-        local ids, f = gr.ids, {}
+        --
         -- Each grid cell covers a fractional span of pixels, and every pixel
-        -- counts by how much of it falls inside. Snapping the cells to whole
-        -- pixels made thin letters (an 'l' is ~5px across 6 columns) jump
-        -- between fingerprints as they moved by a fraction of a pixel.
-        local cw, ch = gw / GC, h / GR
+        -- counts by how much of it falls inside. The box is at least MINW of
+        -- a line wide, centred on the glyph: an 'l' or '!' is ~5px, and six
+        -- columns over 5px made its fingerprint jump as it moved by a
+        -- fraction of a pixel. Over a wider box it slides smoothly instead.
+        local f = {}
+        local bw = math.max(gw, MINW * h)
+        local bx = (xl + xr) / 2 - bw / 2
+        local cw, ch = bw / GC, h / GR
         for gy = 0, GR - 1 do
-            local ya, yb = top + 1 + gy * ch, top + 1 + (gy + 1) * ch   -- [ya, yb)
+            local ya, yb2 = top + 1 + gy * ch, top + 1 + (gy + 1) * ch   -- [ya, yb2)
             for gx = 0, GC - 1 do
-                local xa, xb = x + gx * cw, x + (gx + 1) * cw            -- [xa, xb)
+                local xa, xb = bx + gx * cw, bx + (gx + 1) * cw          -- [xa, xb)
                 local sum = 0
-                for yy = math.floor(ya), math.ceil(yb) - 1 do
-                    local oy = math.min(yb, yy + 1) - math.max(ya, yy)
+                for yy = math.floor(ya), math.ceil(yb2) - 1 do
+                    local oy = math.min(yb2, yy + 1) - math.max(ya, yy)
                     local row, lrow = ink[yy], label[yy]
                     if oy > 0 and row then
                         for xx = math.floor(xa), math.ceil(xb) - 1 do
@@ -304,7 +341,7 @@ local function segment(rows, w, light, over)
             end
         end
         glyphs[#glyphs + 1] = { x0 = x, x1 = x2, f = f, wn = gw / h,
-                                tn = (gr.y0 - top - 1) / h, bn = (gr.y1 - top) / h,
+                                tn = (yt - top - 1) / h, bn = (yb - top - 1) / h,
                                 gap = lastEnd and (x - lastEnd - 1) / h or 0 }
         lastEnd = lastEnd and math.max(lastEnd, x2) or x2
     end
@@ -313,20 +350,16 @@ end
 
 -- ONE atlas for every place text appears: dark on the white box, white on
 -- the name plate, whatever is behind it -- ink is measured against the local
--- paper, so colour is gone by the time we get here. The plate's heavier cut
--- is just more variants of the same letters.
---
--- Returns the best character and its distance, plus the distance of the
--- best OTHER character: a match a little past UNKNOWN still counts when
--- nothing else comes close (see readLine).
+-- paper and bold is thinned to the regular weight, so colour and weight are
+-- gone by the time we get here. Returns the best character and its distance.
 local function match(g, atlas)
     local best, bestD, secondD = nil, math.huge, math.huge
     for i = 1, #atlas do
         local a = atlas[i]
         -- Only distances under the second-best can change either answer,
         -- so a candidate is dropped as soon as it passes that.
-        local d = SHAPE_W * (math.abs(a.w - g.wn) + math.abs(a.t - g.tn)
-                             + math.abs(a.b - g.bn))
+        local d = SHAPE_W * math.abs(a.w - g.wn)
+                  + VERT_W * (math.abs(a.t - g.tn) + math.abs(a.b - g.bn))
         -- (A malformed entry -- wrong fingerprint size -- is skipped, never
         -- allowed to stop the reader.)
         if d < secondD and #a.f == #g.f then
@@ -343,27 +376,28 @@ local function match(g, atlas)
             end
         end
     end
-    return best, bestD, secondD
+    return best, bestD
 end
 
 local function readLine(rows, w, atlas, light, over)
     local glyphs = segment(rows, w, light, over)
-    local out, raw, worst, missing = {}, {}, 0, 0
+    local out, raw, worst, missing, letters = {}, {}, 0, 0, 0
     for i, g in ipairs(glyphs) do
         if i > 1 and g.gap > SPACE then
             out[#out + 1] = " "; raw[#raw + 1] = " "
         end
-        local ch, d, other = match(g, atlas)
+        local ch, d = match(g, atlas)
         if d > worst then worst = d end
-        local sure = d <= UNKNOWN or (d <= 2 * UNKNOWN and other >= CLEAR * d)
-        if not ch or not sure then
+        if not ch or d > UNKNOWN then
             missing = missing + 1
             out[#out + 1] = MISSING; raw[#raw + 1] = "\1"
         else
             out[#out + 1] = ch; raw[#raw + 1] = ch
+            -- A letter or digit (anything beyond ASCII counts: é, kana...).
+            if ch:find("[%w\128-\255]") then letters = letters + 1 end
         end
     end
-    return table.concat(out), glyphs, worst, missing, table.concat(raw)
+    return table.concat(out), glyphs, worst, missing, table.concat(raw), letters
 end
 
 -- job = { seq, learn = bool,
@@ -381,17 +415,18 @@ function onJob(job)
     local res = { seq = job.seq, kind = job.kind, lines = {} }
     for i, line in ipairs(job.lines) do
         local style = line.style or "d"
-        local text, glyphs, worst, missing, raw =
+        local text, glyphs, worst, missing, raw, letters =
             readLine(line.rows, line.w, atlas, line.light, line.over)
         local L = { text = text, raw = raw, worst = worst, missing = missing,
                     style = style, whole = line.whole }
         -- A subtitle has no box to prove it is there, so the text has to:
-        -- at least SUB_MIN glyphs, at least half of them known letters.
+        -- at least SUB_MIN glyphs, at least half of them known LETTERS
+        -- (punctuation doesn't count: specks read as ". ." once passed).
         -- Scenery that happens to be white makes blobs, not words.
         -- (Not when the caller asked for glyphs to learn from: it already
         -- knows there is text, and the atlas may not know a letter of it.)
         if line.over and #glyphs > 0 and not job.learn then
-            if #glyphs < SUB_MIN or missing * 2 > #glyphs then
+            if #glyphs < SUB_MIN or letters * 2 < #glyphs then
                 text, raw, missing, glyphs = "", "", 0, {}
                 L.text, L.raw, L.missing = "", "", 0
             end

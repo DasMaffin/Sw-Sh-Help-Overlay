@@ -76,7 +76,8 @@ local function keep(ch, g, st)
     -- distance as the reader's match, workers/reader.lua).
     for _, a in ipairs(SWSH.fullAtlas()) do
         if a.ch == ch then
-            local d = 30 * (math.abs(a.w - g.w) + math.abs(a.t - g.t) + math.abs(a.b - g.b))
+            local d = 30 * math.abs(a.w - g.w)
+                      + 60 * (math.abs(a.t - g.t) + math.abs(a.b - g.b))
             for k = 1, #g.f do d = d + math.abs(a.f[k] - g.f[k]) end
             if d < SAME then return false end
         end
@@ -90,7 +91,8 @@ local function keep(ch, g, st)
     return true
 end
 
-local STYLE_NAME = { d = "", n = " (name plate)", s = " (subtitle)" }
+local STYLE_NAME = { d = "", n = " (name plate)", s = " (subtitle)",
+                     y = " (system box)" }
 
 -- Count the characters of a known-text string the way the reader counts
 -- glyphs: one per character, spaces skipped.

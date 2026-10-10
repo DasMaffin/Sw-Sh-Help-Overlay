@@ -20,9 +20,14 @@
   weight (WEIGHT) before fingerprinting; ink under FLOOR is uneven paper.
   The atlas keeps a new variant only if no same-letter entry is within
   SAME = 2.0 (i.e. it isn't already readable).
-  A match past UNKNOWN still counts if within 2x and the next other letter
-  is 2x further (CLEAR). Lines carry `style` ("d"/"n") only as a label for
+  NO "close enough": a best distance over UNKNOWN is "[?]", always. (A
+  relaxed rule read an unseen N as H -- "Hice one!" -- and was removed.)
+  Edges/top/bottom are measured to a fraction of a pixel and top/bottom
+  weigh double (VERT_W): that is what separates l from I. Lines carry `style` ("d"/"n") only as a label for
   logs/teaching; the plate is taught as a whole game-text entry (`whole`).
+- System message box (`SWSH.SYS`): dark grey, centred, white text, smaller
+  type -- its line windows are 51 rows (measured: best match) instead of 67,
+  which puts its glyphs at the dialogue's scale. Kind "sys".
 - Cutscene subtitles (`SWSH.SUB`, read only while the box is closed): white
   text over the scene, no outline. Ink = near the line's white AND
   colourless, using NV12's U,V plane (rows after the luma; `grabColour`) --
@@ -35,8 +40,10 @@
 - Fingerprints are measured from the line's BASELINE (median glyph bottom),
   not the band edge, so 1-3 px offsets don't matter (up to 8 variants per
   char, for sub-pixel rendering differences). `python3 dev/shift_test.py`
-  checks every sample shifted +-3 px plus scenery false positives -- run it
-  after any reader change.
+  checks every sample shifted +-3 px plus scenery false positives;
+  `dev/test_subpixel.py` fractional shifts; `dev/test_hidden.py` that an
+  unseen letter is never read as another. Run all three (and
+  `gen_atlas.py --check`) after ANY reader change.
 - **`SWSH.FEATURES` (10_mod.lua) is the fingerprint version. Bump it with
   ANY change to how glyphs are measured** (ink, floor, weight, baseline,
   grid). Learned glyphs carry it (7th column of learned.txt); mismatched

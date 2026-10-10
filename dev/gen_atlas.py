@@ -11,7 +11,8 @@ against them in the engine.
 
 Samples are 1920x1080 screenshots listed in dev/samples/truth.txt as
 "<file>\t<line 1>|<line 2>[\t<speaker name>[\t<kind>]]", kind "box" (the
-default) or "sub" (a cutscene subtitle: white text over the scene). dev/learned/*.txt are learned.txt files copied
+default), "sys" (the dark system message box) or "sub" (a cutscene
+subtitle: white text over the scene). dev/learned/*.txt are learned.txt files copied
 out of an install's data folder (written by the DEV teaching layer); their
 glyphs are baked in after the samples', up to PER_CHAR per character. The geometry below must match SWSH.BOX in
 lua/autorun/10_mod.lua.
@@ -29,6 +30,8 @@ X0, X1 = 400, 1492                      # text columns, 1080p
 LINES = [(889, 956), (967, 1034)]       # [top, bottom) rows of each line
 NX0, NX1 = 345, 728                     # the name plate's text columns
 NAME = (792, 859)                       # ... and rows (white on dark)
+YX0, YX1 = 530, 1376                    # system message box: columns
+SYS = [(888, 939), (948, 999)]          # ... and rows (51: smaller type)
 SX0, SX1 = 404, 1516                    # cutscene subtitles: columns (even)
 SUBS = [(922, 989), (1000, 1067)]       # ... and rows of each line
 # The fingerprint version, from lua/autorun/10_mod.lua.
@@ -40,10 +43,11 @@ SAME = 2.0      # closer than this to a kept variant: already readable, skipped
 
 
 def dist(a, b):
-    """The reader's match distance (workers/reader.lua: SHAPE_W = 30)."""
+    """The reader's match distance (workers/reader.lua: SHAPE_W, VERT_W)."""
     _, w1, t1, b1, f1, _ = a
     _, w2, t2, b2, f2, _ = b
-    return 30 * (abs(w1 - w2) + abs(t1 - t2) + abs(b1 - b2)) + sum(abs(x - y) for x, y in zip(f1, f2))
+    return (30 * abs(w1 - w2) + 60 * (abs(t1 - t2) + abs(b1 - b2))
+            + sum(abs(x - y) for x, y in zip(f1, f2)))
 
 
 def add(entries, count, e):
@@ -111,6 +115,8 @@ def job(L, Y, name=True, kind="box", UV=None):
             rows = [UV[y, SX0:SX1].tobytes() for y in range(a // 2, (b + 1) // 2)]
             return L.table_from({b"uv": L.table(*rows), b"ox": SX0 % 2, b"oy": a % 2})
         lines = [line(SX0, SX1, a, b, style=b"s", over=over(a, b)) for a, b in SUBS]
+    elif kind == "sys":
+        lines = [line(YX0, YX1, a, b, style=b"y", light=True) for a, b in SYS]
     else:
         lines = [line(X0, X1, a, b, style=b"d") for a, b in LINES]
         if name:
