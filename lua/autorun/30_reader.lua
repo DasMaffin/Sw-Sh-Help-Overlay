@@ -66,6 +66,10 @@ local function battleOpen(frame, sx, sy)  -- dark grey, flat, edge to edge
     local lo, hi = probeRange(frame, SWSH.BATTLE.ground, sx, sy)
     return hi <= 90 and lo >= 25 and hi - lo <= 25
 end
+local function menuOpen(frame, sx, sy)    -- the battle menu's HP panel: white
+    local lo, hi = probeRange(frame, SWSH.BATTLE.panel, sx, sy)
+    return lo >= 200 and hi - lo <= 40
+end
 local function sysOpen(frame, sx, sy)     -- mid-dark grey and flat
     local lo, hi = probeRange(frame, SWSH.SYS.ground, sx, sy)
     return hi <= 90 and lo >= 25 and hi - lo <= 25
@@ -115,6 +119,11 @@ function SWSH.mod:OnFrame(frame)
         for i, band in ipairs(SWSH.SYS.lines) do
             regions[#regions + 1] = region(i, SWSH.SYS.x0, SWSH.SYS.x1, band, sx, sy)
         end
+    elseif menuOpen(frame, sx, sy) then
+        -- A battle menu: nothing to read, and its white move names would
+        -- pass for a subtitle.
+        S.kind, S.lines, S.name, S.pending, S.logged = nil, {}, "", nil, nil
+        return
     else
         -- No box: maybe a cutscene subtitle. Only the OCR's confidence can
         -- tell (see Think), so its lines are always read while nothing else is.

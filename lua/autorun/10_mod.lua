@@ -87,6 +87,10 @@ SWSH.BATTLE = {
     lines = { { 889, 956 }, { 967, 1034 } },
     ground = { { y = 878, x0 = 200, x1 = 1780 },
                { y = 1040, x0 = 200, x1 = 1780 } },
+    -- The player's HP panel (white, bottom left) while a battle menu is up.
+    -- Its moves and buttons are white text too: not to be read as subtitles.
+    panel  = { { y = 930, x0 = 200, x1 = 440 }, { y = 975, x0 = 200, x1 = 440 },
+               { y = 1040, x0 = 200, x1 = 420 } },
 }
 
 -- The dark system message box ("Scorbunny has been added to your party.").
