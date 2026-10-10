@@ -26,6 +26,9 @@ local GR, GC = 12, 6             -- fingerprint grid: rows x columns
 local INK    = 0.5               -- fraction of the line's contrast that is ink
 local MIN_RANGE = 60             -- less contrast than this: nothing to read
 local SUB_MIN = 3                -- glyphs a subtitle line needs to count
+local FLOOR   = 0.15             -- ink below this is uneven paper, not ink
+local WEIGHT  = 0.0845           -- the regular weight: mean stroke / line
+                                 -- height (dialogue box and subtitles)
 local ABOVE  = 0.69               -- baseline window: this * lineH above it
 local SPACE  = 0.17              -- a gap wider than this * lineH is a space
 local SHAPE_W = 30               -- weight of width/top/bottom differences
@@ -39,13 +42,14 @@ local MISSING = "[?]"
 
 -- One line: rows is an array of strings, each `w` bytes of luma.
 -- Returns the glyphs found, left to right: { x0, x1, f, wn, gapBefore }.
--- How bright-and-colourless a subtitle pixel must be to count as ink: luma
--- within OVER_RAMP of the line's white ramps 0..1, and any colour (UV away
--- from neutral 128) beyond OVER_GREY fades it out over OVER_FADE.
-local OVER_RAMP, OVER_GREY, OVER_FADE = 70, 10, 20
+-- Subtitle ink: luma within OVER_RAMP of the line's white ramps 0..1. A
+-- blob whose solid core (ink >= OVER_CORE) averages more colour than
+-- OVER_GREY (|U-128| + |V-128|) is scenery, not text.
+local OVER_RAMP, OVER_CORE, OVER_GREY = 70, 0.8, 20
 
 local function segment(rows, w, light, over)
     local h = #rows
+    local chroma                 -- subtitles: per-pixel colour, see below
     local lo, hi = 255, 0
     for y = 1, h do
         local r = rows[y]
@@ -80,21 +84,25 @@ local function segment(rows, w, light, over)
         -- the luma rows. `over.uv` is those rows, `over.ox`/`over.oy` how
         -- the window's first pixel sits in its 2x2 cell.
         local uv, ox, oy = over.uv, over.ox or 0, over.oy or 0
+        chroma = {}
         for y = 1, h do
-            local r, row = rows[y], {}
+            local r, row, crow = rows[y], {}, {}
             local u = uv[(y - 1 + oy) // 2 + 1] or ""
             for x = 1, w do
                 local t = (r:byte(x) - (hi - OVER_RAMP)) / OVER_RAMP
+                row[x] = t < 0 and 0 or (t > 1 and 1 or t)
                 if t > 0 then
                     local i = ((x - 1 + ox) // 2) * 2 + 1
-                    local cu, cv = u:byte(i) or 128, u:byte(i + 1) or 128
-                    local c = math.abs(cu - 128) + math.abs(cv - 128)
-                    if c > OVER_GREY then t = t * (1 - (c - OVER_GREY) / OVER_FADE) end
+                    crow[x] = math.abs((u:byte(i) or 128) - 128)
+                              + math.abs((u:byte(i + 1) or 128) - 128)
                 end
-                row[x] = t < 0 and 0 or (t > 1 and 1 or t)
             end
-            ink[y] = row
+            ink[y], chroma[y] = row, crow
         end
+        -- Colour is judged per BLOB below (cut), not per pixel: a 2x2
+        -- colour cell at a letter's edge mixes the white text with the
+        -- scene behind it, and judging pixels by it made a letter's edges
+        -- depend on where it fell on the colour grid.
         goto cut
     end
     for x = 1, w do
@@ -115,12 +123,57 @@ local function segment(rows, w, light, over)
             local span = paper[x] - inkLevel
             local t = 0
             if span ~= 0 then t = (paper[x] - r:byte(x)) / span end
+            -- Below FLOOR is the paper's own unevenness (the name plate's
+            -- dark ground wanders by 10-20 levels), not ink.
+            t = (t - FLOOR) / (1 - FLOOR)
             row[x] = t < 0 and 0 or (t > 1 and 1 or t)
         end
         ink[y] = row
     end
     end
     ::cut::
+
+    -- ONE WEIGHT. The name plate sets the same font heavier: its strokes
+    -- measure ~6.2px where the dialogue's are ~5.6 (at the same size). Left
+    -- alone, a bold 'e' is too far from a regular one to be recognised, and
+    -- the atlas fills up with bold copies of letters it already knows. So:
+    -- measure the line's average stroke (horizontal ink runs, at the INK
+    -- cutoff) and, if it is heavier than the regular weight, raise the
+    -- cutoff until it isn't -- the anti-aliased edges are where the extra
+    -- weight lives, so this peels it off evenly -- and remap the ink so that
+    -- new cutoff sits where INK did. Every glyph then reaches the atlas at
+    -- the same weight, whatever line it came from.
+    do
+        local function stroke(cut)
+            local sum, n, maxRun = 0, 0, h * 0.3
+            for y = 1, h do
+                local row, run = ink[y], 0
+                for x = 1, w + 1 do
+                    if x <= w and row[x] >= cut then
+                        run = run + 1
+                    elseif run > 0 then
+                        if run < maxRun then sum = sum + run; n = n + 1 end
+                        run = 0
+                    end
+                end
+            end
+            return n > 0 and sum / n or 0
+        end
+        local target = WEIGHT * h
+        local cut = INK
+        if stroke(cut) > target * 1.03 then
+            while cut < 0.9 and stroke(cut) > target do cut = cut + 0.025 end
+            -- [0, cut] -> [0, INK], [cut, 1] -> [INK, 1]
+            for y = 1, h do
+                local row = ink[y]
+                for x = 1, w do
+                    local v = row[x]
+                    if v <= cut then row[x] = v / cut * INK
+                    else row[x] = INK + (v - cut) / (1 - cut) * (1 - INK) end
+                end
+            end
+        end
+    end
 
     -- Cut the line into glyphs by CONNECTED INK, not by empty columns. The
     -- font kerns: a comma tucks under an 'r', a full stop under a 'w', so
@@ -142,6 +195,10 @@ local function segment(rows, w, light, over)
                     local cy = table.remove(stack)
                     local cx = table.remove(stack)
                     c.n = c.n + 1
+                    if chroma and ink[cy][cx] >= OVER_CORE then
+                        c.cn = (c.cn or 0) + 1
+                        c.cs = (c.cs or 0) + (chroma[cy][cx] or 0)
+                    end
                     if cx < c.x0 then c.x0 = cx end
                     if cx > c.x1 then c.x1 = cx end
                     if cy < c.y0 then c.y0 = cy end
@@ -172,7 +229,10 @@ local function segment(rows, w, light, over)
         -- window's right edge is cut off, so it can't be read -- in practice
         -- that's the box's "next" arrow, when the picture sits a pixel or
         -- two off and the arrow's tip reaches into the text columns.
-        if c.n >= 4 and c.x1 < w then
+        -- (Subtitles: a blob whose core is coloured is scenery -- a pale
+        -- yellow highlight is as bright as the text, but not white.)
+        local scenery = chroma and (not c.cn or c.cs / c.cn > OVER_GREY)
+        if c.n >= 4 and c.x1 < w and not scenery then
             local joined = false
             for gi = #groups, math.max(1, #groups - 2), -1 do
                 local g = groups[gi]

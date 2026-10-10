@@ -18,7 +18,7 @@ local LV = (type(LOG_LEVEL) == "table" and LOG_LEVEL.add)
            and LOG_LEVEL.add("Teaching") or 1
 local C = SWSH.C
 local PER_CHAR  = 8          -- distinct variants kept per character
-local SAME      = 1.0        -- closer than this to a kept variant: skipped
+local SAME      = 2.0        -- closer than this to a kept variant: already readable
 local LANGS     = { "en", "de", "fr", "it", "es", "ko", "ja-hiragana",
                     "ja-katakana", "ch-simplified", "ch-traditional" }
 

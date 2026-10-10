@@ -15,21 +15,28 @@
   sets. Ink is measured against the LOCAL paper (per column: brightest value
   for dark text, darkest for light text), so a glyph's fingerprint is the
   same on white, on the box's grey stripe, or white-on-dark on the name plate
-  (`SWSH.NAME`). The plate's heavier cut is just more variants of a letter.
+  (`SWSH.NAME`). The plate's heavier cut is NOT stored as extra variants:
+  each line's mean stroke is measured and bold ink thinned to the regular
+  weight (WEIGHT) before fingerprinting; ink under FLOOR is uneven paper.
+  The atlas keeps a new variant only if no same-letter entry is within
+  SAME = 2.0 (i.e. it isn't already readable).
   A match past UNKNOWN still counts if within 2x and the next other letter
   is 2x further (CLEAR). Lines carry `style` ("d"/"n") only as a label for
   logs/teaching; the plate is taught as a whole game-text entry (`whole`).
 - Cutscene subtitles (`SWSH.SUB`, read only while the box is closed): white
   text over the scene, no outline. Ink = near the line's white AND
   colourless, using NV12's U,V plane (rows after the luma; `grabColour`) --
-  luma alone can't tell white text from pale-yellow highlights. No box to
+  luma alone can't tell white text from pale-yellow highlights. Colour is
+  judged per BLOB (its solid core), never per pixel: 2x2 colour cells at
+  letter edges made edges depend on grid alignment. No box to
   prove it's there, so a subtitle line needs >= 3 glyphs, at least half
   known (skipped when glyphs are requested for learning). Samples with kind
   "sub" in `dev/samples/truth.txt` (4th column).
 - Fingerprints are measured from the line's BASELINE (median glyph bottom),
-  not the band edge, so 1-3 px offsets don't matter; the atlas keeps up to 8
-  DISTINCT variants per char (near-duplicates < 1.0 skipped) because a
-  letter renders differently depending on its sub-pixel position.
+  not the band edge, so 1-3 px offsets don't matter (up to 8 variants per
+  char, for sub-pixel rendering differences). `python3 dev/shift_test.py`
+  checks every sample shifted +-3 px plus scenery false positives -- run it
+  after any reader change.
 - The font is not available to us (commercial, no romfs dump; the user won't
   dump their Switch). The atlas (`lua/autorun/05_atlas.lua`) is built from
   real captures only.

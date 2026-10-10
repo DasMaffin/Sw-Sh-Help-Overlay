@@ -28,11 +28,11 @@ OUT = os.path.join(ROOT, "lua", "autorun", "05_atlas.lua")
 X0, X1 = 400, 1492                      # text columns, 1080p
 LINES = [(889, 956), (967, 1034)]       # [top, bottom) rows of each line
 NX0, NX1 = 345, 728                     # the name plate's text columns
-NAME = (790, 859)                       # ... and rows (white on dark)
+NAME = (792, 859)                       # ... and rows (white on dark)
 SX0, SX1 = 404, 1516                    # cutscene subtitles: columns (even)
 SUBS = [(922, 989), (1000, 1067)]       # ... and rows of each line
 PER_CHAR = 8                            # distinct variants kept per character
-SAME = 1.0      # closer than this to a kept variant: a duplicate, skipped
+SAME = 2.0      # closer than this to a kept variant: already readable, skipped
 
 
 def dist(a, b):

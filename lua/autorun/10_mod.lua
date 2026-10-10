@@ -100,7 +100,10 @@ SWSH.SUB = {
 -- on a dark plate. Not every box has one (signs, the narrator).
 SWSH.NAME = {
     x0 = 345, x1 = 728,
-    band = { 790, 859 },
+    -- 67 rows like a box line -- a line's height is the scale its glyphs are
+    -- measured in, and the plate's type is the same size as the box's (caps
+    -- 36px), just heavier. Baseline at ~840, as 935 in the box's first line.
+    band = { 792, 859 },
     -- Always the plate's dark ground while it is there: the margin left of
     -- the name, and the strip above it.
     plate = { { x = 350, y0 = 788, y1 = 858 },
