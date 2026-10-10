@@ -256,6 +256,15 @@ function SWSH.mod:Think()
 end
 
 ------------------------------------------------------------------- debug --
+-- The console draws ’ — ₽, the overlay's font doesn't (ASCII and a few
+-- accents; anything else is a hollow box): back to ASCII for it.
+function SWSH.overlayText(s)
+    return (s:gsub("’", "'"):gsub("‘", "'"):gsub("“", '"'):gsub("”", '"')
+             :gsub("—", "--"):gsub("₽", "P"))
+end
+
+local overlayText = SWSH.overlayText
+
 overlay.add("swsh.debug", {
     mode = "pinned", lockMode = true, passThrough = true,
     paint = function(d)
@@ -280,8 +289,8 @@ overlay.add("swsh.debug", {
         end
         if #S.lines == 0 then return end     -- nothing read: no empty bar
         d:rect(px + 8, py + 8, 900, 52, 0, 0, 0, 170)
-        d:text(px + 16, py + 12, ((S.name ~= "" and (S.name .. ": ")) or "")
-               .. (S.lines[1] or ""), 18, 255, 255, 255)
-        d:text(px + 16, py + 34, S.lines[2] or "", 18, 255, 255, 255)
+        d:text(px + 16, py + 12, overlayText(((S.name ~= "" and (S.name .. ": ")) or "")
+               .. (S.lines[1] or "")), 18, 255, 255, 255)
+        d:text(px + 16, py + 34, overlayText(S.lines[2] or ""), 18, 255, 255, 255)
     end,
 })

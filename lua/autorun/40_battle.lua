@@ -144,7 +144,7 @@ overlay.add("swsh.stats", {
         d:outline(x, y, w, h, 120, 130, 165, 255)
         d:rect(x, y, w, 5 * u, 40, 44, 60, 236)
         d:text(x + 1.5 * u, y + 1.3 * u, "YOURS", 2.4 * u, 150, 170, 210, 255)
-        d:text(x + 1.5 * u, y + 6.2 * u, e and e[1] or mine.name, 2.9 * u, 240, 242, 255, 255)
+        d:text(x + 1.5 * u, y + 6.2 * u, e and e[1] or SWSH.overlayText(mine.name), 2.9 * u, 240, 242, 255, 255)
         if not e then
             d:text(x + 1.5 * u, y + 10 * u, "not in the Pokedex", 2.0 * u, 150, 158, 180, 255)
             return
