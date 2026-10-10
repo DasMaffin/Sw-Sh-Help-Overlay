@@ -49,7 +49,8 @@ On MCCP builds with log levels the lines are logged under the level
 **Dialogue**, so Options → Developer can show just them.
 
 The English model only knows ASCII, so `'` is printed as `’` and `--` as `—`
-(the game uses those); `é` comes out as `e`.
+(the game uses those); `é` comes out as `e`. It can't read `₽` either: that is
+put back in the money messages ("You got ₽400 for winning!").
 
 Settings: *Print what is read to the console*, and *Show what the reader sees*
 (outlines the lines being read and shows the latest reading).

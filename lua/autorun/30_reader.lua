@@ -138,9 +138,21 @@ function SWSH.mod:OnFrame(frame)
 end
 
 ----------------------------------------------------------------- collect --
--- The game draws ’ and —; the English model only knows ASCII.
+-- The game draws ’, — and ₽; the English model only knows ASCII. ₽ is left
+-- out (or read as P), so it goes back where the game writes money: only in
+-- these phrases -- other numbers ("gained 123 Exp. Points") have none.
+local MONEY = {                     -- { before, after } the amount
+    { "got ",      " for winning" },
+    { "paid out ", "" },
+    { "picked up ", "!" },
+    { "received ", "[.!]" },
+}
 local function tidy(s)
-    return (s:gsub("%-%-", "—"):gsub("'", "’"))
+    s = s:gsub("%-%-", "—"):gsub("'", "’")
+    for _, m in ipairs(MONEY) do
+        s = s:gsub("(" .. m[1] .. ")P? ?([%d,]+" .. m[2] .. ")", "%1₽%2")
+    end
+    return s
 end
 
 local function format(kind, name, lines)
