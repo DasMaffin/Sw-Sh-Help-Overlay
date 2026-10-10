@@ -11,7 +11,8 @@
 --   "SwSh.Result" (res)    every reading, as the worker returned it
 --   "SwSh.Think"  ()       once per Think, after results are applied
 -- and SWSH.reader.requestGlyphs() / SWSH.reader.reshare(); SWSH.logSuffix,
--- if someone defines it, is appended to each printed text line.
+-- if someone defines it, is appended (in the "stat" colour) to each printed
+-- text line.
 
 local S = {
     lines   = { "", "" },  -- the latest reading
@@ -64,8 +65,8 @@ function SWSH.mod:OnFrame(frame)
 
     if frame:format() ~= "SDL_PIXELFORMAT_NV12" then
         if not warned then
-            log(MOD_NAME .. ": frame format " .. tostring(frame:format())
-                .. " is not supported yet (NV12 only)")
+            SWSH.log(SWSH.LV.important, SWSH.C.error, "frame format ",
+                     tostring(frame:format()), " is not supported yet (NV12 only)")
             warned = true
         end
         return
@@ -112,9 +113,15 @@ function SWSH.mod:Think()
         if S.stable == STABLE and text ~= S.logged and text ~= "\n" then
             S.logged = text
             if SWSH.mod:get("log_text") then
+                local line = S.lines[1]
+                             .. (S.lines[2] ~= "" and (" / " .. S.lines[2]) or "")
+                local args = SWSH.marked(line, SWSH.C.text)
                 local suffix = SWSH.logSuffix and SWSH.logSuffix(res) or ""
-                log(MOD_NAME .. ": " .. S.lines[1]
-                    .. (S.lines[2] ~= "" and (" / " .. S.lines[2]) or "") .. suffix)
+                if suffix ~= "" then
+                    args[#args + 1] = SWSH.C.stat
+                    args[#args + 1] = suffix
+                end
+                SWSH.log(SWSH.LV.dialogue, table.unpack(args))
             end
         end
     end

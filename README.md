@@ -29,6 +29,17 @@ question mark).
 
 ## Log messages
 
+On an MCCP build with log levels and colours (engine `development`, Oct 2026)
+the mod logs under its own levels, so Options → Developer can show just them:
+
+- **Dialogue**: finished boxes. Text in white, unreadable glyphs `[?]` in red,
+  the glyph count in blue.
+- **Teaching** (DEV only): learned letters in green with the letter in yellow;
+  "could not learn" in orange.
+- **Important**: problems (unsupported frame format, no teaching data).
+
+Older builds get the same lines without colour or levels.
+
 | Message | Meaning |
 |---|---|
 | `<line 1> / <line 2>` | A finished box. |

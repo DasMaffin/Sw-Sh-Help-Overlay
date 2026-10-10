@@ -37,6 +37,10 @@ How it works:
 - Only `teach_en.lua` is generated so far; other languages:
   `python3 dev/gen_teach.py <swsh-text checkout> de fr ...`.
 
+Log through `SWSH.log(level, ...)` (10_mod.lua): our own levels
+(`SWSH.LV.dialogue`, "Teaching" in the dev file), colours from `SWSH.C`,
+`SWSH.marked()` paints `[?]` red; it falls back to one plain string on
+engines without LOG_LEVEL. `SIM_RICH=1 dev/sim.py ...` exercises the rich path.
 Keep README.md's "Log messages" table in sync whenever a log line is added
 or changed.
 

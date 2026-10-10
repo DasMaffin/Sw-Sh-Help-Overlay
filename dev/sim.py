@@ -31,6 +31,25 @@ camera = { pictureRect = function() return 0, 0, 0, 0 end }
 MOD_NAME = "swsh_text"
 '''
 
+# SIM_RICH=1: the newer engine log() -- levels and colour tables (ANSI here).
+RICH = r'''
+local names = { [1] = "Verbose", [2] = "Important" }
+LOG_LEVEL = { VERBOSE = 1, IMPORTANT = 2, next = 16 }
+function LOG_LEVEL.add(n) local v = LOG_LEVEL.next LOG_LEVEL.next = v + 1 names[v] = n return v end
+function log(...)
+    local a, lv, out = { ... }, 1, {}
+    local i = 1
+    if math.type(a[1]) == "integer" and names[a[1]] and #a > 1 then lv = a[1]; i = 2 end
+    for k = i, #a do
+        local v = a[k]
+        if type(v) == "table" then
+            out[#out + 1] = string.format("\27[38;2;%d;%d;%dm", v[1] or v.r, v[2] or v.g, v[3] or v.b)
+        else out[#out + 1] = tostring(v) end
+    end
+    print("[mod] <" .. names[lv] .. "> " .. table.concat(out) .. "\27[0m")
+end
+'''
+
 def main():
     path = sys.argv[1]
     frames = int(sys.argv[2]) if len(sys.argv) > 2 else 16
@@ -59,6 +78,8 @@ def main():
 
     L = lua54.LuaRuntime(encoding=None)
     L.execute(MOCK)
+    if os.environ.get("SIM_RICH"):
+        L.execute(RICH)
     L.globals().worker = L.table_from({b"spawn": spawn})
 
     class Frame:

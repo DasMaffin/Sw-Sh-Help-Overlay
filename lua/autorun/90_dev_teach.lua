@@ -12,6 +12,11 @@
 -- found once, by whoever meets it first.
 
 local LEARNED   = "learned.txt"
+-- Teaching chatter gets a level of its own, so it can be filtered apart from
+-- the dialogue. (Older engines: plain lines, see SWSH.log.)
+local LV = (type(LOG_LEVEL) == "table" and LOG_LEVEL.add)
+           and LOG_LEVEL.add("Teaching") or 1
+local C = SWSH.C
 local PER_CHAR  = 5          -- samples kept per character; more adds nothing
 local LANGS     = { "en", "de", "fr", "it", "es", "ko", "ja-hiragana",
                     "ja-katakana", "ch-simplified", "ch-traditional" }
@@ -71,8 +76,8 @@ local function show(s) return (s:gsub("\1", "[?]")) end
 local lang = SWSH.mod:get("dev_lang") or "en"
 local teacher = worker.spawn("dev/teach/teach_" .. lang .. ".lua")
 if not teacher then
-    log(MOD_NAME .. ": DEV self-teaching is off -- no dev/teach/teach_" .. lang
-        .. ".lua (build it with dev/gen_teach.py)")
+    SWSH.log(SWSH.LV.important, C.warn, "DEV self-teaching is off -- no dev/teach/teach_",
+             lang, ".lua (build it with dev/gen_teach.py)")
 end
 
 -- How many of the language's characters the reader knows, for the line
@@ -138,16 +143,27 @@ hook.Add("SwSh.Think", "swsh.dev.selfteach", function()
             for j, c in ipairs(ans.chars) do
                 if keep(c, glyphs[j]) then
                     n = n + 1
-                    log(string.format("%s: DEV learned new letter '%s' from \"%s\" (read as \"%s\"%s)",
-                                      MOD_NAME, c, line, show(ans.key),
-                                      ans.placeholder and ("; \"" .. ans.placeholder
-                                          .. "\" taken as a name") or ""))
+                    local args = { C.good, "DEV learned new letter '", C.letter, c,
+                                   C.good, "' from \"", C.text, line, C.good,
+                                   "\" (read as \"" }
+                    for _, v in ipairs(SWSH.marked(show(ans.key), C.text)) do
+                        args[#args + 1] = v
+                    end
+                    args[#args + 1] = C.good
+                    args[#args + 1] = "\"" .. (ans.placeholder and ("; \"" .. ans.placeholder
+                                          .. "\" taken as a name") or "") .. ")"
+                    SWSH.log(LV, table.unpack(args))
                 end
             end
             if n > 0 then SWSH.reader.reshare(); statDue = true end
         elseif ans.why then
-            log(string.format("%s: DEV could not learn from \"%s\": %s",
-                              MOD_NAME, show(ans.key), ans.why))
+            local args = { C.warn, "DEV could not learn from \"" }
+            for _, v in ipairs(SWSH.marked(show(ans.key), C.text)) do
+                args[#args + 1] = v
+            end
+            args[#args + 1] = C.warn
+            args[#args + 1] = "\": " .. ans.why
+            SWSH.log(LV, table.unpack(args))
         end
         ::continue::
     end
@@ -193,7 +209,7 @@ panel.children[4].onClick = function()
     learned, perChar, tried = {}, {}, {}
     SWSH.reader.reshare()
     teachMsg = "Learned glyphs cleared."
-    log(MOD_NAME .. ": DEV learned glyphs cleared")
+    SWSH.log(LV, C.warn, "DEV learned glyphs cleared")
 end
 
 hook.Add("SwSh.Result", "swsh.dev.manual", function(res)
@@ -217,8 +233,14 @@ hook.Add("SwSh.Result", "swsh.dev.manual", function(res)
                 for k, g in ipairs(L.glyphs) do
                     if was[k] ~= cs[k] and keep(cs[k], g) then
                         added = added + 1
-                        log(string.format("%s: DEV learned new letter '%s' (typed in; was read as \"%s\")",
-                                          MOD_NAME, cs[k], show(was[k] or "")))
+                        local args = { C.good, "DEV learned new letter '", C.letter, cs[k],
+                                       C.good, "' (typed in; was read as \"" }
+                        for _, v in ipairs(SWSH.marked(show(was[k] or ""), C.text)) do
+                            args[#args + 1] = v
+                        end
+                        args[#args + 1] = C.good
+                        args[#args + 1] = "\")"
+                        SWSH.log(LV, table.unpack(args))
                     end
                 end
             end
@@ -227,7 +249,7 @@ hook.Add("SwSh.Result", "swsh.dev.manual", function(res)
     if added > 0 then SWSH.reader.reshare(); statDue = true end
     teachMsg = (#msgs > 0 and (table.concat(msgs, "; ") .. ". ") or "")
                .. "Learned " .. added .. " glyphs."
-    log(MOD_NAME .. ": DEV " .. teachMsg)
+    SWSH.log(LV, #msgs > 0 and C.warn or C.good, "DEV ", teachMsg)
 end)
 
 hook.Add("OverlayElement", "swsh.dev.teach", function(el)

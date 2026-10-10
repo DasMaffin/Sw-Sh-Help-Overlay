@@ -10,6 +10,62 @@ SWSH.mod = game.register({
     { handle = "pkmn_shield", name = "Pokemon Shield" },
 })
 
+------------------------------------------------------------------ logging --
+-- Engines with the newer log() (colours, levels: wiki "Globals") get our own
+-- level, so the user can filter the console down to just this mod's
+-- dialogue, and a little colour. Older engines take one string: the colour
+-- tables are dropped and the text is joined, so the same calls work there.
+local RICH = type(LOG_LEVEL) == "table" and type(LOG_LEVEL.add) == "function"
+
+SWSH.LV = {
+    important = RICH and LOG_LEVEL.IMPORTANT or 2,
+    dialogue  = RICH and LOG_LEVEL.add("Dialogue") or 1,
+}
+
+SWSH.C = {
+    dim     = { 150, 150, 160 },   -- the "Sw-Sh-Help-Overlay:" prefix
+    text    = { 235, 235, 240 },   -- what the box says
+    unknown = { 255,  90,  90 },   -- a glyph it couldn't read: [?]
+    stat    = { 120, 200, 255 },   -- [glyphs 42/109 en]
+    good    = { 120, 220, 140 },   -- learned something
+    letter  = { 255, 220, 100 },   -- the letter itself
+    warn    = { 255, 170,  80 },   -- couldn't learn / something's off
+    error   = { 255,  90,  90 },
+}
+
+-- SWSH.log(level, ...) -- strings, numbers and colour tables, as log() takes
+-- them. The mod's name is put in front in the dim colour.
+function SWSH.log(level, ...)
+    local n = select("#", ...)
+    if RICH then
+        log(level, SWSH.C.dim, MOD_NAME .. ": ", ...)
+        return
+    end
+    local out = {}
+    for i = 1, n do
+        local v = select(i, ...)
+        if type(v) ~= "table" then out[#out + 1] = tostring(v) end
+    end
+    log(MOD_NAME .. ": " .. table.concat(out))
+end
+
+-- Text with its [?] markers picked out in the "unknown" colour, as a list
+-- of log() arguments: SWSH.log(lv, table.unpack(SWSH.marked(s, SWSH.C.text))).
+function SWSH.marked(s, base)
+    local out, i = { base }, 1
+    while true do
+        local a, b = s:find("[?]", i, true)
+        if not a then break end
+        if a > i then out[#out + 1] = s:sub(i, a - 1) end
+        out[#out + 1] = SWSH.C.unknown
+        out[#out + 1] = "[?]"
+        out[#out + 1] = base
+        i = b + 1
+    end
+    if i <= #s then out[#out + 1] = s:sub(i) end
+    return out
+end
+
 SWSH.mod:addSetting("log_text", "Print dialogue text to the console", "bool", nil, true)
 -- Outlines the windows the reader samples and shows what it read, over the
 -- picture. "Reading the wrong place" and "reading the right place wrongly"
