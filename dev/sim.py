@@ -5,7 +5,8 @@
     python3 dev/sim.py [--all] [--say "Go! Scorbunny!"] dev/samples/hop_1.webp [...]
 
 --all turns on the "read_all" setting (dialogue, system and cutscene text, not
-only battle text). --say feeds a battle line to SWSH.onBattleText first, as if
+only battle text). --png DIR saves each picture with the overlays drawn on it (DIR/<name>.png).
+--say feeds a battle line to SWSH.onBattleText first, as if
 it had been read. After each picture the stats overlay is painted and what it
 would draw is printed as [draw] lines.
 
@@ -41,13 +42,20 @@ overlay = { elements = {} }
 function overlay.add(id, spec) spec.id = id overlay.elements[id] = spec return spec end
 hook = { Add = function() end }
 camera = { pictureRect = function() return 0, 0, 1920, 1080 end }
--- Paints an overlay element, printing its text calls.
+-- Paints an overlay element, printing its text calls; returns every call.
 function sim_paint(id)
-    local texts = {}
-    local d = { text = function(_, x, y, str) texts[#texts + 1] = str end }
-    for _, m in ipairs({ "rect", "outline", "line", "image" }) do d[m] = function() end end
+    local texts, ops = {}, {}
+    local d = {}
+    for _, m in ipairs({ "rect", "outline", "line", "image", "text" }) do
+        d[m] = function(_, ...) ops[#ops + 1] = { m, ... } end
+    end
+    function d.text(_, x, y, str, ...)
+        texts[#texts + 1] = str
+        ops[#ops + 1] = { "text", x, y, str, ... }
+    end
     overlay.elements[id].paint(d, overlay.elements[id])
     if #texts > 0 then print("[draw] " .. table.concat(texts, " | ")) end
+    return ops
 end
 MOD_NAME = "Sw-Sh-Help-Overlay"
 '''
@@ -118,12 +126,48 @@ class FakeOcr:
         return t({"id": jid, "ms": 30, "regions": self.L.table(*regions)})
 
 
+def render(path, ops, outdir):
+    """Draws recorded DrawContext calls over the picture. The engine's font is
+    monospaced, each character `size` wide: here each one is centred in its
+    size x size cell, close enough to judge a layout."""
+    from PIL import ImageDraw, ImageFont
+    im = Image.open(path).convert("RGB").resize((1920, 1080))
+    lay = Image.new("RGBA", im.size)
+    g = ImageDraw.Draw(lay)
+    fonts = {}
+    def font(sz):
+        if sz not in fonts:
+            try: fonts[sz] = ImageFont.truetype("consola.ttf", sz)
+            except OSError: fonts[sz] = ImageFont.load_default()
+        return fonts[sz]
+    for op in ops:
+        kind, a = op[0], op[1:]
+        col = lambda i: tuple(int(v) for v in a[i:i + 3]) + (int(a[i + 3]) if len(a) > i + 3 else 255,)
+        if kind == "rect":
+            x, y, w, h = a[:4]
+            g.rectangle([x, y, x + w - 1, y + h - 1], fill=col(4))
+        elif kind == "outline":
+            x, y, w, h = a[:4]
+            g.rectangle([x, y, x + w - 1, y + h - 1], outline=col(4))
+        elif kind == "text":
+            x, y, text, sz = a[0], a[1], str(a[2]), int(round(a[3]))
+            f = font(max(6, int(sz * 1.15)))
+            for i, ch in enumerate(text):
+                g.text((x + i * sz + sz / 2, y + sz / 2), ch, font=f, fill=col(4), anchor="mm")
+    im = Image.alpha_composite(im.convert("RGBA"), lay).convert("RGB")
+    os.makedirs(outdir, exist_ok=True)
+    out = os.path.join(outdir, os.path.splitext(os.path.basename(path))[0] + ".png")
+    im.save(out)
+    print("[png]", out)
+
+
 def main():
-    args, say, read_all = sys.argv[1:], [], False
+    args, say, read_all, png = sys.argv[1:], [], False, None
     while args and args[0].startswith("--"):
         a = args.pop(0)
         if a == "--all": read_all = True
         elif a == "--say": say.append(args.pop(0))
+        elif a == "--png": png = args.pop(0)
     paths = args or sorted(p for p in glob.glob(os.path.join(ROOT, "dev", "samples", "*.*"))
                                    if not p.endswith(".txt"))
     L = lua54.LuaRuntime(encoding="utf-8")
@@ -158,7 +202,9 @@ def main():
         for _ in range(60):
             mod.Think(mod)
             mod.OnFrame(mod, frame)
-        L.globals().sim_paint("swsh.stats")
+        ops = L.globals().sim_paint("swsh.stats")
+        if png:
+            render(path, [list(o.values()) for o in ops.values()], png)
         # The picture goes away (a blank frame), so the next one prints afresh.
         blank = Y * 0 + 40
         fake.frame = blank

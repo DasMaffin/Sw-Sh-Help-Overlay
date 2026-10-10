@@ -79,16 +79,49 @@ function SWSH.onBattleText(lines)
 end
 
 ------------------------------------------------------------------ draw --
--- Where the box goes, in 1080p pixels: just above the player's HP panel
--- (white, x 0..495, from y 925).
-local PANEL = { x = 6, y = 815, w = 474, h = 104 }
-local LABELS = { "HP", "Atk", "Def", "SpA", "SpD", "Spe", "Total" }
+-- The look of pkmn_stats' YOURS panel (its 60_ui_battle.lua), sized in the
+-- same unit u: a GBA pixel there, 6.75 px of a 1080p picture here. Only base
+-- stats are known, so it is that panel's "no level" layout -- one full bar
+-- and the base value per row -- without stage arrows, Acc/Eva or ability.
+local U       = 6.75          -- 1080p pixels per unit
+local W       = 46            -- panel width, units
+local ROWS    = 13.4          -- first stat row, from the panel's top
+local ROW_H   = 3.1
+local BOTTOM  = 919           -- 1080p y the panel ends at: the HP panel is at 925
+local LEFT    = 6
+local STATS   = { { "HP", 3 }, { "Atk", 4 }, { "Def", 5 },
+                  { "SpA", 6 }, { "SpD", 7 }, { "Spe", 8 } }
 
-local function statColour(v)
-    if v >= 110 then return 120, 220, 255 end
-    if v >= 90  then return 120, 230, 120 end
-    if v >= 60  then return 240, 220, 110 end
-    return 245, 120, 100
+-- pkmn_stats' type palette (lifted for dark panels), plus Fairy.
+local TYPE_COLOR = {
+    Normal   = { 190, 190, 150 }, Fire     = { 255, 140, 70 },
+    Water    = { 120, 155, 255 }, Electric = { 250, 215, 70 },
+    Grass    = { 130, 210, 95 },  Ice      = { 160, 225, 225 },
+    Fighting = { 225, 90, 70 },   Poison   = { 195, 95, 195 },
+    Ground   = { 230, 205, 120 }, Flying   = { 175, 150, 250 },
+    Psychic  = { 255, 110, 150 }, Bug      = { 180, 195, 65 },
+    Rock     = { 200, 180, 90 },  Ghost    = { 150, 125, 200 },
+    Dragon   = { 145, 95, 255 },  Dark     = { 165, 135, 115 },
+    Steel    = { 190, 190, 215 }, Fairy    = { 240, 150, 200 },
+}
+
+-- The built-in font is monospaced, each character `size` wide.
+local function rightText(d, xr, y, str, size, r, g, b)
+    str = tostring(str)
+    d:text(xr - #str * size, y, str, size, r, g, b, 255)
+end
+
+local function typeText(d, x, y, types, size)
+    for part, slash in types:gmatch("([^/]+)(/?)") do
+        local c = TYPE_COLOR[part] or { 150, 200, 255 }
+        d:text(x, y, part, size, c[1], c[2], c[3], 255)
+        x = x + #part * size
+        if slash == "/" then
+            d:text(x, y, "/", size, 150, 156, 175, 255)
+            x = x + size
+        end
+    end
+    return x
 end
 
 overlay.add("swsh.stats", {
@@ -102,30 +135,39 @@ overlay.add("swsh.stats", {
         local px, py, pw, ph = camera.pictureRect()
         if pw <= 0 then return end
         local s = ph / SWSH.REF_H
-        local x, y = px + PANEL.x * s, py + PANEL.y * s
-        d:rect(x, y, PANEL.w * s, PANEL.h * s, 16, 20, 30, 215)
-
+        local u = U * s
         local e = mine.dex
+        local w, h = W * u, (e and ROWS + #STATS * ROW_H + 0.8 or ROWS) * u
+        local x, y = px + LEFT * s, py + BOTTOM * s - h
+
+        d:rect(x, y, w, h, 20, 22, 32, 224)
+        d:outline(x, y, w, h, 120, 130, 165, 255)
+        d:rect(x, y, w, 5 * u, 40, 44, 60, 236)
+        d:text(x + 1.5 * u, y + 1.3 * u, "YOURS", 2.4 * u, 150, 170, 210, 255)
+        d:text(x + 1.5 * u, y + 6.2 * u, e and e[1] or mine.name, 2.9 * u, 240, 242, 255, 255)
         if not e then
-            d:text(x + 10 * s, y + 10 * s, mine.name, 22 * s, 255, 255, 255)
-            d:text(x + 10 * s, y + 44 * s, "not in the Pokedex (a nickname?)", 16 * s, 190, 190, 200)
+            d:text(x + 1.5 * u, y + 10 * u, "not in the Pokedex", 2.0 * u, 150, 158, 180, 255)
             return
         end
-        d:text(x + 10 * s, y + 8 * s, e[1], 22 * s, 255, 255, 255)
-        d:text(x + 260 * s, y + 12 * s, e[2] .. (e.galar and " (Galar)" or ""), 15 * s, 190, 200, 220)
+
         local total = 0
-        for i = 1, 6 do total = total + e[i + 2] end
-        local col = (PANEL.w - 20) / 7
-        for i = 1, 7 do
-            local v = i <= 6 and e[i + 2] or total
-            local cx = x + (10 + (i - 1) * col) * s
-            d:text(cx, y + 42 * s, LABELS[i], 15 * s, 170, 175, 190)
-            if i <= 6 then
-                local r, g, b = statColour(v)
-                d:text(cx, y + 66 * s, tostring(v), 24 * s, r, g, b)
-            else
-                d:text(cx, y + 66 * s, tostring(v), 24 * s, 255, 255, 255)
-            end
+        for _, st in ipairs(STATS) do total = total + e[st[2]] end
+        rightText(d, x + w - 1.5 * u, y + 1.6 * u, "BST " .. total, 1.8 * u, 170, 200, 240)
+        local tx = typeText(d, x + 1.5 * u, y + 10 * u, e[2], 2.0 * u)
+        if e.galar then d:text(tx + 2.0 * u, y + 10 * u, "Galar", 2.0 * u, 150, 158, 180, 255) end
+
+        local bx = x + 9 * u             -- after a 3-letter label
+        local bw = w - 17.5 * u          -- stops short of the value ("255")
+        for i, st in ipairs(STATS) do
+            local v  = e[st[2]]
+            local ry = y + (ROWS + (i - 1) * ROW_H) * u
+            d:text(x + 1.5 * u, ry, st[1], 2.0 * u, 200, 206, 220, 255)
+            d:rect(bx, ry + 0.2 * u, bw, 1.9 * u, 45, 48, 62, 255)
+            local r, g, b = 90, 200, 165
+            if v >= 100 then r, g, b = 120, 210, 120
+            elseif v < 50 then r, g, b = 210, 150, 90 end
+            d:rect(bx, ry + 0.2 * u, bw * math.min(1.0, v / 180), 1.9 * u, r, g, b, 255)
+            rightText(d, x + w - 1.5 * u, ry, v, 2.0 * u, 235, 235, 240)
         end
     end,
 })

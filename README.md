@@ -42,7 +42,7 @@ Each region is one line of text, read in the module's `line` mode
 Battle text names the Pokémon: "Go! Scorbunny!" (also "You're in charge,
 …!", "Go for it, …!") is yours, "… sent out Wooloo!" and "You encountered a
 wild …!" the opponent's. While a battle menu is up (your HP panel shows), a
-box above that panel shows your Pokémon's types and base stats (HP, Atk, Def,
+panel above it, in the look of pkmn_stats' YOURS panel, shows your Pokémon's types and base stats (HP, Atk, Def,
 SpA, SpD, Spe, total). A name that isn't a species — a nickname — shows as
 "not in the Pokédex". A species with a Galarian form shows that form.
 
@@ -79,7 +79,7 @@ reading).
 pip install lupa pillow numpy rapidocr_onnxruntime
 python3 dev/sim.py                       # every screenshot in dev/samples
 python3 dev/sim.py dev/samples/hop_1.webp
-python3 dev/sim.py --all --say "Go! Scorbunny!" dev/samples/battle_moves.webp
+python3 dev/sim.py --png out --say "Go! Scorbunny!" dev/samples/battle_moves.webp
 ```
 
 `dev/sim.py` runs the addon under a mocked engine, with a stand-in for the
