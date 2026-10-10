@@ -33204,9 +33204,10 @@ local function escape(s) return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")) e
 
 local function boundary(c) return c == "" or c == " " or c == "\n" end
 
--- Every place `pat` fits as whole words. Returns the one answer they agree
--- on, false if they disagree, nil if there is none.
-local function search(pat)
+-- Every place `pat` fits as whole words (or, with `whole`, as one whole
+-- entry: the name plate's text is a name and nothing else). Returns the one
+-- answer they agree on, false if they disagree, nil if there is none.
+local function search(pat, whole)
     local answer, hits, init = nil, 0, 1
     while hits < MAX_HITS do
         local found = { DICT:find(pat, init) }
@@ -33214,8 +33215,14 @@ local function search(pat)
         if not s then break end
         init = s + 1
         -- A displayed line is whole words: the game only wraps at spaces.
-        if not SPACED or (boundary(DICT:sub(s - 1, s - 1))
-                          and boundary(DICT:sub(e + 1, e + 1))) then
+        local before, after = DICT:sub(s - 1, s - 1), DICT:sub(e + 1, e + 1)
+        local fits
+        if whole then
+            fits = (before == "" or before == "\n") and (after == "" or after == "\n")
+        else
+            fits = not SPACED or (boundary(before) and boundary(after))
+        end
+        if fits then
             hits = hits + 1
             local key = table.concat(found, "\0", 3)
             if answer == nil then
@@ -33235,7 +33242,7 @@ local solve
 function onJob(job)
     -- { charset = true }: every character this language's text uses.
     if job.charset then return { charset = CHARSET } end
-    local res = solve(job.raw)
+    local res = solve(job.raw, job.whole)
     if res.chars or res.why ~= "not in the game text" then
         res.key = job.key
         return res
@@ -33250,7 +33257,7 @@ function onJob(job)
             seen[word] = true
             local sub = (" " .. job.raw .. " "):gsub("(%W)" .. word .. "(%W)", "%1\3%2")
             sub = sub:gsub("(%W)" .. word .. "(%W)", "%1\3%2"):sub(2, -2)
-            local r = solve(sub)
+            local r = solve(sub, job.whole)
             if r.chars then
                 local key = table.concat(r.chars, "\0")
                 if found and found.key ~= key then
@@ -33267,7 +33274,7 @@ function onJob(job)
     return { key = job.key, why = "not in the game text" }
 end
 
-function solve(raw)
+function solve(raw, whole)
     local pieces, unknown, known = {}, 0, 0
     for piece, mark in (raw .. "\2"):gmatch("([^\1\2]*)([\1\2])") do
         pieces[#pieces + 1] = escape(piece)
@@ -33276,7 +33283,9 @@ function solve(raw)
     end
     if unknown == 0 then return { why = "nothing unknown" } end
     if unknown > MAX_UNKNOWN then return { why = "too many unknowns" } end
-    if known < MIN_KNOWN then return { why = "too little known text" } end
+    -- A name is short ("Hop" is 3), but as a whole entry it is pinned at
+    -- both ends, which is what a long known stretch buys a dialogue line.
+    if known < (whole and 1 or MIN_KNOWN) then return { why = "too little known text" } end
 
     -- Fewest pairs first: a reading where every unknown is one character is
     -- the likely one, and only if none fits are touching pairs considered.
@@ -33293,7 +33302,7 @@ function solve(raw)
                     parts[#parts + 1] = WIDTH[((combo >> (k - 1)) & 1) + 1]
                 end
                 parts[#parts + 1] = pieces[unknown + 1]
-                local a = search(table.concat(parts))
+                local a = search(table.concat(parts), whole)
                 if a == false or (a and answer and a.key ~= answer.key) then
                     return { why = "ambiguous" }
                 end

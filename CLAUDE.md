@@ -11,6 +11,13 @@
   `frame:region`, recognise on a worker, decide in Think. Geometry is measured
   at 1920x1080 (`SWSH.BOX` in `lua/autorun/10_mod.lua`, mirrored in
   `dev/gen_atlas.py`).
+- Text styles: atlas entries carry `s` = "d" (dialogue box, dark on white)
+  or "n" (speaker name plate, `SWSH.NAME`, white on dark, matched as a whole
+  game-text entry when teaching). Only same-style glyphs compete.
+- Fingerprints are measured from the line's BASELINE (median glyph bottom),
+  not the band edge, so 1-3 px offsets don't matter; the atlas keeps up to 8
+  DISTINCT variants per char (near-duplicates < 1.0 skipped) because a
+  letter renders differently depending on its sub-pixel position.
 - The font is not available to us (commercial, no romfs dump; the user won't
   dump their Switch). The atlas (`lua/autorun/05_atlas.lua`) is built from
   real captures only.

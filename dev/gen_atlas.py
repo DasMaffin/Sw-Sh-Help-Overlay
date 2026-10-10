@@ -10,7 +10,7 @@ against them in the engine.
     python3 dev/gen_atlas.py --check  # read every sample with the atlas
 
 Samples are 1920x1080 screenshots listed in dev/samples/truth.txt as
-"<file>\t<line 1>|<line 2>". dev/learned/*.txt are learned.txt files copied
+"<file>\t<line 1>|<line 2>" or "<file>\t<line 1>|<line 2>\t<speaker name>". dev/learned/*.txt are learned.txt files copied
 out of an install's data folder (written by the DEV teaching layer); their
 glyphs are baked in after the samples', up to PER_CHAR per character. The geometry below must match SWSH.BOX in
 lua/autorun/10_mod.lua.
@@ -26,7 +26,31 @@ OUT = os.path.join(ROOT, "lua", "autorun", "05_atlas.lua")
 
 X0, X1 = 400, 1492                      # text columns, 1080p
 LINES = [(889, 956), (967, 1034)]       # [top, bottom) rows of each line
-PER_CHAR = 5                            # samples kept per character
+NX0, NX1 = 345, 728                     # the name plate's text columns
+NAME = (790, 859)                       # ... and rows (white on dark)
+PER_CHAR = 8                            # distinct variants kept per character
+SAME = 1.0      # closer than this to a kept variant: a duplicate, skipped
+
+
+def dist(a, b):
+    """The reader's match distance (workers/reader.lua: SHAPE_W = 30)."""
+    _, w1, t1, b1, f1, _ = a
+    _, w2, t2, b2, f2, _ = b
+    return 30 * (abs(w1 - w2) + abs(t1 - t2) + abs(b1 - b2)) + sum(abs(x - y) for x, y in zip(f1, f2))
+
+
+def add(entries, count, e):
+    """Keep e unless its character already has PER_CHAR variants, or one
+    almost exactly like it. The same letter renders a pixel differently
+    depending on where it falls on the grid, and keeping the FIRST few
+    samples once kept five of one variant and none of the other."""
+    key = (e[0], e[5])
+    if count.get(key, 0) >= PER_CHAR:
+        return
+    if any(x[0] == e[0] and x[5] == e[5] and dist(x, e) < SAME for x in entries):
+        return
+    count[key] = count.get(key, 0) + 1
+    entries.append(e)
 
 
 def luma(path):
@@ -43,20 +67,27 @@ def runtime():
     return L
 
 
-def job(L, Y):
-    lines = [L.table(*[Y[y, X0:X1].tobytes() for y in range(a, b)]) for a, b in LINES]
-    return L.table_from({b"seq": 1, b"w": X1 - X0, b"lines": L.table(*lines), b"learn": True})
+def job(L, Y, name=True):
+    def line(x0, x1, a, b, **kw):
+        d = {b"rows": L.table(*[Y[y, x0:x1].tobytes() for y in range(a, b)]), b"w": x1 - x0}
+        d.update({k.encode(): v for k, v in kw.items()})
+        return L.table_from(d)
+    lines = [line(X0, X1, a, b, style=b"d") for a, b in LINES]
+    if name:
+        lines.append(line(NX0, NX1, *NAME, style=b"n", light=True, whole=True))
+    return L.table_from({b"seq": 1, b"lines": L.table(*lines), b"learn": True})
 
 
 def atlas_table(L, entries):
     return L.table(*[L.table_from({b"ch": c.encode(), b"w": w, b"t": t, b"b": b,
-                                   b"f": L.table(*f)}) for c, w, t, b, f in entries])
+                                   b"f": L.table(*f), b"s": st.encode()})
+                     for c, w, t, b, f, st in entries])
 
 
 def read(L, path):
     r = L.globals().onJob(job(L, luma(path)))
     out = []
-    for i in (1, 2):
+    for i in (1, 2, 3):
         ln = r[b"lines"][i]
         gl = [(g[b"w"], g[b"t"], g[b"b"], list(g[b"f"].values()))
               for g in ln[b"glyphs"].values()]
@@ -68,23 +99,24 @@ def samples():
     with open(os.path.join(SAMPLES, "truth.txt"), encoding="utf-8") as f:
         for line in f:
             if line.strip():
-                name, text = line.rstrip("\n").split("\t")
-                yield os.path.join(SAMPLES, name), text.split("|")
+                f = line.rstrip("\n").split("\t")
+                lines = f[1].split("|")
+                lines.append(f[2] if len(f) > 2 else "")      # the name plate
+                yield os.path.join(SAMPLES, f[0]), lines
 
 
 def build():
     entries, count = [], {}
     for path, truth in samples():
-        for (text, glyphs), want in zip(read(runtime(), path), truth):
+        for i, ((text, glyphs), want) in enumerate(zip(read(runtime(), path), truth)):
+            st = "n" if i == 2 else "d"
             chars = [c for c in want if c != " "]
             if len(chars) != len(glyphs):
                 print(f"skip {os.path.basename(path)} {want!r}: "
                       f"{len(glyphs)} glyphs for {len(chars)} characters")
                 continue
             for c, (w, t, b, f) in zip(chars, glyphs):
-                if count.get(c, 0) < PER_CHAR:
-                    count[c] = count.get(c, 0) + 1
-                    entries.append((c, w, t, b, f))
+                add(entries, count, (c, w, t, b, f, st))
     learned_dir = os.path.join(ROOT, "dev", "learned")
     for name in sorted(os.listdir(learned_dir)) if os.path.isdir(learned_dir) else []:
         if not name.endswith(".txt"):
@@ -92,25 +124,25 @@ def build():
         with open(os.path.join(learned_dir, name), encoding="utf-8") as lf:
             for line in lf:
                 p = line.rstrip("\n").split("\t")
-                if len(p) != 5:
+                if len(p) not in (5, 6):
                     continue
-                c = p[0]
-                if count.get(c, 0) < PER_CHAR:
-                    count[c] = count.get(c, 0) + 1
-                    entries.append((c, float(p[1]), float(p[2]), float(p[3]),
-                                    [float(v) for v in p[4].split(",")]))
+                c, st = p[0], (p[5] if len(p) == 6 else "d")
+                add(entries, count, (c, float(p[1]), float(p[2]), float(p[3]),
+                                     [float(v) for v in p[4].split(",")], st))
     with open(OUT, "w", encoding="utf-8") as f:
         f.write("-- GENERATED by dev/gen_atlas.py from dev/samples -- do not edit.\n")
         f.write("-- Glyph fingerprints of the Sword/Shield dialogue font; see\n")
         f.write("-- workers/reader.lua for what the numbers mean.\n")
         f.write("SWSH = SWSH or {}\nSWSH.atlas = {\n")
-        for c, w, t, b, fv in entries:
+        for c, w, t, b, fv, st in entries:
             q = c.replace("\\", "\\\\").replace('"', '\\"')
-            f.write('    { ch = "%s", w = %.4f, t = %.4f, b = %.4f, f = { %s } },\n'
-                    % (q, w, t, b, ", ".join("%.3g" % v for v in fv)))
+            f.write('    { ch = "%s", s = "%s", w = %.4f, t = %.4f, b = %.4f, f = { %s } },\n'
+                    % (q, st, w, t, b, ", ".join("%.3g" % v for v in fv)))
         f.write("}\n")
-    print(f"wrote {len(entries)} glyphs, {len(count)} characters: "
-          + "".join(sorted(count)))
+    for st, label in (("d", "dialogue"), ("n", "name")):
+        cs = sorted(c for c, s2 in count if s2 == st)
+        print(f"{label}: {len(cs)} characters: " + "".join(cs))
+    print(f"wrote {len(entries)} glyphs")
     return entries
 
 
@@ -119,7 +151,8 @@ def check(entries):
         L = runtime()
         L.globals().ATLAS = atlas_table(L, entries)
         for (text, _), want in zip(read(L, path), truth):
-            print(("ok  " if text == want else "BAD ") + text)
+            if want or text:
+                print(("ok  " if text == want else "BAD ") + text)
 
 
 if __name__ == "__main__":

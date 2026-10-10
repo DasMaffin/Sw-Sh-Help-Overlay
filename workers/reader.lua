@@ -16,7 +16,8 @@
 --
 -- Shared once by the main thread:
 --   ATLAS  { { ch = "a", w = <width>, t = <ink top>, b = <ink bottom>,
---              f = { ...GR*GC numbers 0..1 } }, ... }
+--              f = { ...GR*GC numbers 0..1 }, s = <style> }, ... }
+--   (s: "d" dialogue -- the default when absent -- or "n" the name plate)
 --   (w, t, b are fractions of the line's height, so they hold at any
 --   capture resolution)
 --   (learned glyphs are appended and re-shared)
@@ -24,6 +25,7 @@
 local GR, GC = 12, 6             -- fingerprint grid: rows x columns
 local INK    = 0.5               -- fraction of the line's contrast that is ink
 local MIN_RANGE = 60             -- less contrast than this: nothing to read
+local ABOVE  = 0.69               -- baseline window: this * lineH above it
 local SPACE  = 0.17              -- a gap wider than this * lineH is a space
 local SHAPE_W = 30               -- weight of width/top/bottom differences
 local UNKNOWN = 3.0              -- a best distance above this is unknown
@@ -34,7 +36,7 @@ local MISSING = "[?]"
 
 -- One line: rows is an array of strings, each `w` bytes of luma.
 -- Returns the glyphs found, left to right: { x0, x1, f, wn, gapBefore }.
-local function segment(rows, w)
+local function segment(rows, w, light)
     local h = #rows
     local lo, hi = 255, 0
     for y = 1, h do
@@ -47,13 +49,15 @@ local function segment(rows, w)
     end
     if hi - lo < MIN_RANGE then return {}, lo, hi end
 
-    -- Ink per pixel, 0 (paper) .. 1 (ink). Dark text on the white box.
+    -- Ink per pixel, 0 (paper) .. 1 (ink). Dark text on the white box;
+    -- with `light`, white text on a dark plate (the speaker's name).
     local span = hi - lo
     local ink = {}
     for y = 1, h do
         local r, row = rows[y], {}
         for x = 1, w do
-            local t = (hi - r:byte(x)) / span
+            local v = r:byte(x)
+            local t = (light and (v - lo) or (hi - v)) / span
             row[x] = t < 0 and 0 or (t > 1 and 1 or t)
         end
         ink[y] = row
@@ -105,7 +109,11 @@ local function segment(rows, w)
     table.sort(comps, function(p, q) return p.x0 < q.x0 end)
     local groups = {}
     for _, c in ipairs(comps) do
-        if c.n >= 4 then                     -- smaller is capture noise
+        -- Smaller than 4 pixels is capture noise. Anything touching the
+        -- window's right edge is cut off, so it can't be read -- in practice
+        -- that's the box's "next" arrow, when the picture sits a pixel or
+        -- two off and the arrow's tip reaches into the text columns.
+        if c.n >= 4 and c.x1 < w then
             local joined = false
             for gi = #groups, math.max(1, #groups - 2), -1 do
                 local g = groups[gi]
@@ -127,45 +135,64 @@ local function segment(rows, w)
     end
     table.sort(groups, function(p, q) return p.x0 < q.x0 end)
 
+    -- THE BASELINE, not the band, is what fingerprints are measured from.
+    -- Most glyphs sit on it, so it is the median of their bottoms. Measured
+    -- from the band's top edge instead, a capture one pixel off (scaling,
+    -- a different card, a 1919x1079 screenshot) moved every glyph within
+    -- its window and nothing matched. The window runs from ABOVE of a line
+    -- height above the baseline to BELOW under it -- room for ascenders,
+    -- accents and descenders, as the dialogue's own band has.
+    local bottoms = {}
+    for i, gr in ipairs(groups) do bottoms[i] = gr.y1 end
+    table.sort(bottoms)
+    local base = bottoms[math.max(1, (#bottoms + 1) // 2)] or h
+    local top = base - math.floor(ABOVE * h + 0.5)    -- window row 1 - 1
+
     local glyphs, lastEnd = {}, nil
     for _, gr in ipairs(groups) do
         local x, x2 = gr.x0, gr.x1
         -- Fingerprint: area-average of ink over a GR x GC grid laid over
-        -- the glyph's own columns and the whole line's rows. Only this
+        -- the glyph's own columns and the baseline window's rows. Only this
         -- glyph's ink counts (plus the faint anti-aliasing no blob owns), so
         -- a neighbour reaching into these columns doesn't leak in.
         local gw = x2 - x + 1
         local ids, f = gr.ids, {}
         for gy = 0, GR - 1 do
-            local ya = math.floor(gy * h / GR) + 1
-            local yb = math.max(ya, math.floor((gy + 1) * h / GR))
+            local ya = top + math.floor(gy * h / GR) + 1
+            local yb = math.max(ya, top + math.floor((gy + 1) * h / GR))
             for gx = 0, GC - 1 do
                 local xa = x + math.floor(gx * gw / GC)
                 local xb = math.max(xa, x + math.floor((gx + 1) * gw / GC) - 1)
                 local sum, n = 0, 0
                 for yy = ya, yb do
                     local row, lrow = ink[yy], label[yy]
-                    for xx = xa, xb do
-                        local l = lrow[xx]
-                        if not l or ids[l] then sum = sum + row[xx] end
-                        n = n + 1
+                    if row then
+                        for xx = xa, xb do
+                            local l = lrow[xx]
+                            if not l or ids[l] then sum = sum + row[xx] end
+                        end
                     end
+                    n = n + (xb - xa + 1)
                 end
                 f[#f + 1] = sum / n
             end
         end
         glyphs[#glyphs + 1] = { x0 = x, x1 = x2, f = f, wn = gw / h,
-                                tn = (gr.y0 - 1) / h, bn = gr.y1 / h,
+                                tn = (gr.y0 - top - 1) / h, bn = (gr.y1 - top) / h,
                                 gap = lastEnd and (x - lastEnd - 1) / h or 0 }
         lastEnd = lastEnd and math.max(lastEnd, x2) or x2
     end
     return glyphs, lo, hi
 end
 
-local function match(g, atlas)
+-- Only glyphs of the line's own style compete: the name plate's text is a
+-- heavier, slightly smaller cut than the dialogue's, and its fingerprints
+-- would only blur the dialogue's matches (and the other way round).
+local function match(g, atlas, style)
     local best, bestD = nil, math.huge
     for i = 1, #atlas do
         local a = atlas[i]
+        if (a.s or "d") ~= style then goto skip end
         local d = SHAPE_W * (math.abs(a.w - g.wn) + math.abs(a.t - g.tn)
                              + math.abs(a.b - g.bn))
         if d < bestD then
@@ -176,18 +203,19 @@ local function match(g, atlas)
             end
             if d < bestD then best, bestD = a.ch, d end
         end
+        ::skip::
     end
     return best, bestD
 end
 
-local function readLine(rows, w, atlas)
-    local glyphs = segment(rows, w)
+local function readLine(rows, w, atlas, light, style)
+    local glyphs = segment(rows, w, light)
     local out, raw, worst, missing = {}, {}, 0, 0
     for i, g in ipairs(glyphs) do
         if i > 1 and g.gap > SPACE then
             out[#out + 1] = " "; raw[#raw + 1] = " "
         end
-        local ch, d = match(g, atlas)
+        local ch, d = match(g, atlas, style)
         if d > worst then worst = d end
         if not ch or d > UNKNOWN then
             missing = missing + 1
@@ -199,14 +227,20 @@ local function readLine(rows, w, atlas)
     return table.concat(out), glyphs, worst, missing, table.concat(raw)
 end
 
--- job = { seq, w, lines = { {rows...}, {rows...} }, learn = bool }
--- Each line comes back as { text, raw, worst, missing, glyphs? }.
+-- job = { seq, learn = bool,
+--         lines = { { rows = {...}, w = <bytes per row>, light = bool,
+--                     style = "d" | "n", whole = bool }, ... } }
+-- Each line comes back as { text, raw, worst, missing, style, whole,
+-- glyphs? }; style and whole are echoed for whoever learns from it.
 function onJob(job)
     local atlas = ATLAS or {}
     local res = { seq = job.seq, lines = {} }
-    for i, rows in ipairs(job.lines) do
-        local text, glyphs, worst, missing, raw = readLine(rows, job.w, atlas)
-        local L = { text = text, raw = raw, worst = worst, missing = missing }
+    for i, line in ipairs(job.lines) do
+        local style = line.style or "d"
+        local text, glyphs, worst, missing, raw =
+            readLine(line.rows, line.w, atlas, line.light, style)
+        local L = { text = text, raw = raw, worst = worst, missing = missing,
+                    style = style, whole = line.whole }
         -- Fingerprints come back when asked for, or when something was
         -- unknown -- so whoever wants to learn it has the shape in hand.
         if job.learn or missing > 0 then

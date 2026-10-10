@@ -29,6 +29,7 @@ SWSH.C = {
     stat    = { 120, 200, 255 },   -- [glyphs 42/109 en]
     good    = { 120, 220, 140 },   -- learned something
     letter  = { 255, 220, 100 },   -- the letter itself
+    name    = { 255, 200, 120 },   -- the speaker's name
     warn    = { 255, 170,  80 },   -- couldn't learn / something's off
     error   = { 255,  90,  90 },
 }
@@ -83,6 +84,17 @@ SWSH.BOX = {
     -- margin left of the text, and the strip above the first line.
     paper = { { x = 388, y0 = 880, y1 = 1034 },     -- a column
               { y = 878, x0 = 450, x1 = 1400 } },   -- a row
+}
+
+-- The speaker's name plate above the box's top-left: white text, centred,
+-- on a dark plate. Not every box has one (signs, the narrator).
+SWSH.NAME = {
+    x0 = 345, x1 = 728,
+    band = { 790, 859 },
+    -- Always the plate's dark ground while it is there: the margin left of
+    -- the name, and the strip above it.
+    plate = { { x = 350, y0 = 788, y1 = 858 },
+              { y = 788, x0 = 352, x1 = 720 } },
 }
 
 -- The atlas the worker matches against: the shipped glyphs, plus whatever

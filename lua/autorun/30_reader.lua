@@ -16,6 +16,7 @@
 
 local S = {
     lines   = { "", "" },  -- the latest reading
+    name    = "",          -- the speaker, "" when the box has no name plate
     open    = false,       -- is the box on screen right now
     pending = nil,         -- text seen but not yet stable
     stable  = 0,           -- how many reads in a row it has been the same
@@ -38,25 +39,49 @@ function SWSH.reader.requestGlyphs() wantGlyphs = true end
 
 local frameNo, seq, warned, shared = 0, 0, false, false
 
--- Is the white box there? Every paper probe must be bright and flat.
-local function boxOpen(frame, sx, sy)
-    local B = SWSH.BOX
-    local col = B.paper[1]
-    local x = math.floor(col.x * sx)
-    local y0, y1 = math.floor(col.y0 * sy), math.floor(col.y1 * sy)
-    local c = frame:region(x, y0, 1, y1 - y0)
-    local row = B.paper[2]
-    local r = frame:region(math.floor(row.x0 * sx), math.floor(row.y * sy),
-                           math.floor((row.x1 - row.x0) * sx), 1)
+-- Luma range over a set of probes: { x, y0, y1 } columns and { y, x0, x1 }
+-- rows, in 1080p pixels, every other sample.
+local function probeRange(frame, probes, sx, sy)
     local lo, hi = 255, 0
-    for _, s in ipairs({ c, r }) do
+    for _, p in ipairs(probes) do
+        local s
+        if p.x then
+            local y0 = math.floor(p.y0 * sy)
+            s = frame:region(math.floor(p.x * sx), y0, 1, math.floor(p.y1 * sy) - y0)
+        else
+            local x0 = math.floor(p.x0 * sx)
+            s = frame:region(x0, math.floor(p.y * sy), math.floor(p.x1 * sx) - x0, 1)
+        end
         for i = 1, #s, 2 do
             local v = s:byte(i)
             if v < lo then lo = v end
             if v > hi then hi = v end
         end
     end
+    return lo, hi
+end
+
+-- Is the white box there? Every paper probe must be bright and flat.
+local function boxOpen(frame, sx, sy)
+    local lo, hi = probeRange(frame, SWSH.BOX.paper, sx, sy)
     return lo >= 170 and hi - lo <= 40
+end
+
+-- Is the name plate there? Its ground is dark and nearly flat.
+local function plateOpen(frame, sx, sy)
+    local lo, hi = probeRange(frame, SWSH.NAME.plate, sx, sy)
+    return hi <= 80 and hi - lo <= 50
+end
+
+-- One band of text, as the worker wants it.
+local function grab(frame, x0, x1, band, sx, sy)
+    local xa = math.floor(x0 * sx)
+    local w  = math.floor(x1 * sx) - xa
+    local y0 = math.floor(band[1] * sy)
+    local h  = math.floor(band[2] * sy) - y0
+    local blob, rows = frame:region(xa, y0, w, h), {}
+    for r = 0, h - 1 do rows[r + 1] = blob:sub(r * w + 1, (r + 1) * w) end
+    return { rows = rows, w = w }
 end
 
 function SWSH.mod:OnFrame(frame)
@@ -76,21 +101,25 @@ function SWSH.mod:OnFrame(frame)
     S.open = boxOpen(frame, sx, sy)
     if not S.open then return end
 
-    local B = SWSH.BOX
-    local x0 = math.floor(B.x0 * sx)
-    local w  = math.floor(B.x1 * sx) - x0
+    local B, N = SWSH.BOX, SWSH.NAME
     local lines = {}
     for i, band in ipairs(B.lines) do
-        local y0 = math.floor(band[1] * sy)
-        local h  = math.floor(band[2] * sy) - y0
-        local blob, rows = frame:region(x0, y0, w, h), {}
-        for r = 0, h - 1 do rows[r + 1] = blob:sub(r * w + 1, (r + 1) * w) end
-        lines[i] = rows
+        local L = grab(frame, B.x0, B.x1, band, sx, sy)
+        L.style = "d"
+        lines[i] = L
+    end
+    -- The name plate is line 3, when there is one. `whole`: a name is all
+    -- there is on its plate, which is what lets it be taught from the
+    -- game's name lists.
+    if plateOpen(frame, sx, sy) then
+        local L = grab(frame, N.x0, N.x1, N.band, sx, sy)
+        L.style, L.light, L.whole = "n", true, true
+        lines[3] = L
     end
 
     seq = seq + 1
     -- post refuses while the worker is busy; that frame is simply skipped.
-    if reader:post({ seq = seq, w = w, lines = lines, learn = wantGlyphs }) then
+    if reader:post({ seq = seq, lines = lines, learn = wantGlyphs }) then
         wantGlyphs = false
     end
 end
@@ -104,18 +133,26 @@ function SWSH.mod:Think()
     for _, res in ipairs(reader:collect()) do
         hook.Run("SwSh.Result", res)
         S.lines = { res.lines[1].text, res.lines[2].text }
-        local text = S.lines[1] .. "\n" .. S.lines[2]
+        S.name = res.lines[3] and res.lines[3].text or ""
+        local text = S.name .. "\n" .. S.lines[1] .. "\n" .. S.lines[2]
         if text == S.pending then
             S.stable = S.stable + 1
         else
             S.pending, S.stable = text, 1
         end
-        if S.stable == STABLE and text ~= S.logged and text ~= "\n" then
+        if S.stable == STABLE and text ~= S.logged and (S.lines[1] ~= "" or S.lines[2] ~= "") then
             S.logged = text
             if SWSH.mod:get("log_text") then
                 local line = S.lines[1]
                              .. (S.lines[2] ~= "" and (" / " .. S.lines[2]) or "")
                 local args = SWSH.marked(line, SWSH.C.text)
+                if S.name ~= "" then
+                    local named = SWSH.marked(S.name, SWSH.C.name)
+                    named[#named + 1] = SWSH.C.name
+                    named[#named + 1] = ": "
+                    for _, v in ipairs(args) do named[#named + 1] = v end
+                    args = named
+                end
                 local suffix = SWSH.logSuffix and SWSH.logSuffix(res) or ""
                 if suffix ~= "" then
                     args[#args + 1] = SWSH.C.stat
@@ -145,8 +182,12 @@ overlay.add("swsh.debug", {
             d:outline(px + B.x0 * sx, py + band[1] * sy, (B.x1 - B.x0) * sx,
                       (band[2] - band[1]) * sy, r, g, 60)
         end
+        local N = SWSH.NAME
+        d:outline(px + N.x0 * sx, py + N.band[1] * sy, (N.x1 - N.x0) * sx,
+                  (N.band[2] - N.band[1]) * sy, 230, 200, 60)
         d:rect(px + 8, py + 8, 900, 52, 0, 0, 0, 170)
-        d:text(px + 16, py + 12, S.lines[1] or "", 18, 255, 255, 255)
+        d:text(px + 16, py + 12, ((S.name ~= "" and (S.name .. ": ")) or "")
+               .. (S.lines[1] or ""), 18, 255, 255, 255)
         d:text(px + 16, py + 34, S.lines[2] or "", 18, 255, 255, 255)
     end,
 })
