@@ -27,6 +27,7 @@ SWSH.C = {
     text     = { 235, 235, 240 },   -- what was read
     name     = { 255, 200, 120 },   -- the speaker's name
     system   = { 140, 190, 230 },   -- the [system] tag
+    battle   = { 230, 150, 130 },   -- the [battle] tag
     cutscene = { 170, 150, 220 },   -- the [cutscene] tag
     error    = { 255,  90,  90 },
 }
@@ -75,6 +76,17 @@ SWSH.NAME = {
     band = { 792, 859 },
     plate = { { x = 350, y0 = 788, y1 = 858 },
               { y = 788, x0 = 352, x1 = 720 } },
+}
+
+-- The battle message box ("Your Pokemon gained Exp. Points!"): a dark band
+-- across the whole bottom of the screen, white text at the dialogue's size and
+-- on the dialogue's lines. Told from the system box by its ground running on
+-- to the right edge, where the system box (centred, x ~480..1440) has ended.
+SWSH.BATTLE = {
+    x0 = 150, x1 = 1780,                         -- stops short of the "next" arrow
+    lines = { { 889, 956 }, { 967, 1034 } },
+    ground = { { y = 878, x0 = 200, x1 = 1780 },
+               { y = 1040, x0 = 200, x1 = 1780 } },
 }
 
 -- The dark system message box ("Scorbunny has been added to your party.").

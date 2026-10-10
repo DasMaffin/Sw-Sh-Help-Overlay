@@ -21,7 +21,8 @@
   probes) and calls `ocr.read`; Think calls `ocr.poll` and prints. Current
   scope: print what is read to the console, nothing more.
 - Geometry is measured at 1920x1080 in `lua/autorun/10_mod.lua` (`SWSH.BOX`,
-  `NAME`, `SYS`, `SUB`) and scaled to the frame.
+  `NAME`, `BATTLE`, `SYS`, `SUB`; battle is checked before sys, whose probes
+  it also matches) and scaled to the frame.
 - Log through `SWSH.log(level, ...)`: level `SWSH.LV.dialogue` / `important`,
   colours from `SWSH.C`; falls back to one plain string on engines without
   LOG_LEVEL. Keep README.md's "Console output" table in sync.

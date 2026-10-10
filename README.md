@@ -39,6 +39,7 @@ Each region is one line of text, read in the module's `line` mode
 | `Hop: <line 1> / <line 2>` | The dialogue box, with the name plate when there is one. |
 | `<line 1> / <line 2>` | The dialogue box without a name plate. |
 | `[system] <line 1> / <line 2>` | The dark system message box. |
+| `[battle] <line 1> / <line 2>` | The battle message box (dark band across the whole bottom). |
 | `[cutscene] <line 1> / <line 2>` | A cutscene subtitle (white text over the scene). |
 | `the OCR module isn't available ...` | `bin/ocr.dll` is missing or failed to load. |
 | `OCR failed: ...` | The module reported an error for a job. |

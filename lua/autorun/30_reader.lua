@@ -62,6 +62,10 @@ local function plateOpen(frame, sx, sy)   -- dark and nearly flat
     local lo, hi = probeRange(frame, SWSH.NAME.plate, sx, sy)
     return hi <= 80 and hi - lo <= 50
 end
+local function battleOpen(frame, sx, sy)  -- dark grey, flat, edge to edge
+    local lo, hi = probeRange(frame, SWSH.BATTLE.ground, sx, sy)
+    return hi <= 90 and lo >= 25 and hi - lo <= 25
+end
 local function sysOpen(frame, sx, sy)     -- mid-dark grey and flat
     local lo, hi = probeRange(frame, SWSH.SYS.ground, sx, sy)
     return hi <= 90 and lo >= 25 and hi - lo <= 25
@@ -100,6 +104,12 @@ function SWSH.mod:OnFrame(frame)
         if plateOpen(frame, sx, sy) then
             regions[#regions + 1] = region("name", SWSH.NAME.x0, SWSH.NAME.x1, SWSH.NAME.band, sx, sy)
         end
+    elseif battleOpen(frame, sx, sy) then
+        -- Before the system box: its probes would match the battle band too.
+        kind = "battle"
+        for i, band in ipairs(SWSH.BATTLE.lines) do
+            regions[#regions + 1] = region(i, SWSH.BATTLE.x0, SWSH.BATTLE.x1, band, sx, sy)
+        end
     elseif sysOpen(frame, sx, sy) then
         kind = "sys"
         for i, band in ipairs(SWSH.SYS.lines) do
@@ -128,6 +138,8 @@ local function format(kind, name, lines)
     local args = {}
     if kind == "sys" then
         args[#args + 1] = SWSH.C.system;   args[#args + 1] = "[system] "
+    elseif kind == "battle" then
+        args[#args + 1] = SWSH.C.battle;   args[#args + 1] = "[battle] "
     elseif kind == "sub" then
         args[#args + 1] = SWSH.C.cutscene; args[#args + 1] = "[cutscene] "
     end
@@ -150,7 +162,9 @@ local function apply(res)
     local lines, name = {}, ""
     for _, r in ipairs(res.regions) do
         local l = r.lines[1]
-        if l and l.text ~= "" and l.score >= min then
+        -- A line needs a letter or digit: an empty line reads as stray
+        -- punctuation (":"), which is not text.
+        if l and l.text:find("[%w\128-\255]") and l.score >= min then
             if r.key == "name" then name = tidy(l.text)
             else lines[r.key] = tidy(l.text) end
         end
@@ -203,6 +217,8 @@ overlay.add("swsh.debug", {
         if S.kind == "box" then
             for _, band in ipairs(SWSH.BOX.lines) do box(SWSH.BOX.x0, SWSH.BOX.x1, band, 60, 230, 60) end
             if S.name ~= "" then box(SWSH.NAME.x0, SWSH.NAME.x1, SWSH.NAME.band, 255, 200, 120) end
+        elseif S.kind == "battle" then
+            for _, band in ipairs(SWSH.BATTLE.lines) do box(SWSH.BATTLE.x0, SWSH.BATTLE.x1, band, 230, 150, 130) end
         elseif S.kind == "sys" then
             for _, band in ipairs(SWSH.SYS.lines) do box(SWSH.SYS.x0, SWSH.SYS.x1, band, 140, 190, 230) end
         elseif S.kind == "sub" then
