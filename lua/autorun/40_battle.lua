@@ -11,11 +11,15 @@
 -- Stats: Gen 8's formula over what isn't known. Yours: IV 0-31, EV 0-252,
 -- nature x0.9-x1.1 (HP exact once the panel's max HP is read). The
 -- opponent's: the same with no EVs -- in-game trainers' and wild Pokemon have
--- none. Before a level is read, base stats.
+-- none. Before a level is read, base stats. A trainer's Pokemon, though, are
+-- in SWSH.TRAINERS: the trainer comes from "<trainer> sent out ..." and
+-- "You are challenged by <trainer>!", the species and level off the panel,
+-- and their stats are then exact.
 
 local B = {
-    mine = nil,      -- { name = as read, dex = SWSH.DEX entry or nil, lv, hp }
+    mine = nil,      -- { name = as read, dex = SWSH.DEX entry or nil, lv, hp, exact }
     foe  = nil,
+    trainer = nil,   -- { name, teams = its SWSH.TRAINERS entries }; nil in the wild
 }
 SWSH.battle = B
 ----------------------------------------------------------------- names --
@@ -57,6 +61,77 @@ local function lookup(name)
     return not tie and best or nil
 end
 
+-------------------------------------------------------------- trainers --
+-- SWSH.TRAINERS by key. "Pokémon" folds to "pokemon", as the OCR (ASCII
+-- only) reads it.
+local function trainerKey(s) return SWSH.dexKey((s:gsub("é", "e"))) end
+
+local byKey
+local function trainer(name)
+    if not byKey then
+        byKey = {}
+        for _, t in ipairs(SWSH.TRAINERS or {}) do
+            byKey[t[1]] = byKey[t[1]] or {}
+            table.insert(byKey[t[1]], t)
+        end
+    end
+    local k = trainerKey(name)
+    if byKey[k] then return byKey[k] end
+    if #k < 6 then return nil end
+    -- OCR slips: up to two in a short name, three in a long one; the single
+    -- closest only.
+    local max = #k >= 12 and 3 or 2
+    local best, bestD, tie = nil, max + 1, false
+    for key, list in pairs(byKey) do
+        if math.abs(#key - #k) <= max then
+            local d = distance(k, key)
+            if d < bestD then best, bestD, tie = list, d, false
+            elseif d == bestD then tie = true end
+        end
+    end
+    return not tie and best or nil
+end
+
+-- who.exact = { lo = {6}, hi = {6}, nature } from the trainer's team, when the
+-- species and level are in it. The same trainer fought more than once (or
+-- with a team per starter) can have it more than once: lo-hi over them all,
+-- and the same numbers if they agree.
+local function resolve(who)
+    if not who then return end
+    who.exact = nil
+    if who ~= B.foe or not (B.trainer and who.dex and who.lv) then return end
+    local k = SWSH.dexKey(who.dex[1])
+    local lo, hi, nat
+    for _, t in ipairs(B.trainer.teams) do
+        for j = 3, #t do
+            local p = t[j]
+            if p[1] == k and p[2] == who.lv then
+                lo, hi = lo or {}, hi or {}
+                for i = 1, 6 do
+                    lo[i] = math.min(lo[i] or math.huge, p[i + 2])
+                    hi[i] = math.max(hi[i] or 0, p[i + 2])
+                end
+                if nat == nil then nat = p[9] elseif nat ~= p[9] then nat = false end
+            end
+        end
+    end
+    if not lo then return end
+    who.exact = { lo = lo, hi = hi, nature = nat ~= "" and nat or nil }
+    SWSH.log(SWSH.LV.dialogue, SWSH.C.battle, "[foe] ", SWSH.C.text,
+             who.dex[1] .. " Lv." .. who.lv .. " of " .. B.trainer.name .. ": exact stats"
+             .. (who.exact.nature and (", " .. who.exact.nature) or ""))
+end
+
+local function setTrainer(name)
+    local teams = name and trainer(name)
+    if teams == (B.trainer and B.trainer.teams) then return end
+    B.trainer = teams and { name = teams[1][2], teams = teams } or nil
+    if B.trainer then
+        SWSH.log(SWSH.LV.dialogue, SWSH.C.battle, "[trainer] ", SWSH.C.text, B.trainer.name)
+    end
+    resolve(B.foe)
+end
+
 ------------------------------------------------------------------ text --
 -- The player's send-out lines: "<opener><name>!"
 local MINE = { "^Go! ", "in charge, ", "Go for it, ", "Hang in there, ",
@@ -77,10 +152,16 @@ function SWSH.onBattleText(lines)
         local name = s:match(opener .. "([^!,]+)!")
         if name then set("mine", name) return end
     end
-    -- "sent out Grookey!", "sent out Wooloo and Grookey!" (doubles: the first)
-    local name = s:match("sent out ([^!]+)!")
-              or s:match("wild ([^!]+) appeared")
-              or s:match("encountered a wild ([^!]+)!")
+    local by = s:match("challenged by (.-)!")
+    if by then setTrainer(by) return end
+    -- "Pokemon Trainer Hop sent out Grookey!", "... sent out Wooloo and
+    -- Grookey!" (doubles: the first)
+    local who, name = s:match("^(.-) sent out ([^!]+)!")
+    if who then setTrainer(who)
+    else
+        name = s:match("wild ([^!]+) appeared") or s:match("encountered a wild ([^!]+)!")
+        if name then setTrainer(nil) end
+    end
     if name then set("foe", (name:gsub(" and .*", ""))) end
 end
 
@@ -99,6 +180,7 @@ local function range(who, i)
     local base = who.dex[i + 2]
     local lv = who.lv
     if not lv then return base, base end
+    if who.exact then return who.exact.lo[i], who.exact.hi[i] end
     if i == 1 and who.hp then return who.hp, who.hp end
     local ev = who == B.mine and 252 or 0
     return stat(base, 0, 0, lv, 9, i == 1), stat(base, 31, ev, lv, 11, i == 1)
@@ -122,6 +204,7 @@ function SWSH.onPanels(got)
             local dex = lookup(name) or lookup(name:gsub("[^%w]*%w?[^%w]*$", ""))
             if steady(side .. ".name", dex) and not (B[side] and B[side].dex == dex) then
                 set(side, dex[1], dex)
+                resolve(B[side])
             end
         end
         local who = B[side]
@@ -131,6 +214,7 @@ function SWSH.onPanels(got)
             who.lv, who.hp = lv, nil
             SWSH.log(SWSH.LV.dialogue, SWSH.C.battle, side == "mine" and "[you] " or "[foe] ",
                      SWSH.C.text, (who.dex and who.dex[1] or who.name) .. " Lv." .. lv)
+            resolve(who)
         end
         -- "8/23": the max HP is the HP stat, if it fits the level.
         local hp = tonumber((got[side .. ".hp"] or ""):match("/%s*(%d+)"))
@@ -219,6 +303,10 @@ local function drawPanel(d, side, s, px, py, scale)
               1.8 * u, 170, 200, 240)
     local tx = typeText(d, x + 1.5 * u, y + 10 * u, e[2], 2.0 * u)
     if e.galar then d:text(tx + 2.0 * u, y + 10 * u, "Galar", 2.0 * u, 150, 158, 180, 255) end
+    -- A trainer's Pokemon: its nature, from the game's data.
+    if who.exact and who.exact.nature then
+        rightText(d, x + w - 1.5 * u, y + 10 * u, who.exact.nature, 2.0 * u, 230, 200, 140)
+    end
 
     local bx = x + 9 * u              -- after a 3-letter label
     local bw = w - 26 * u             -- stops short of the value ("100-200")

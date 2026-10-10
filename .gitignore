@@ -2,3 +2,5 @@ __pycache__/
 *.npy
 # Game files (local only, never committed)
 ROMs/
+dev/pknx-export/bin/
+dev/pknx-export/obj/

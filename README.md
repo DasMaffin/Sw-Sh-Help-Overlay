@@ -55,6 +55,12 @@ the high end, on one scale for both panels.
 |---|---|---|---|
 | Yours | 0–31 | 0–252 | ×0.9–×1.1 — HP is exact: the panel's max HP |
 | Enemy | 0–31 | 0 (in-game trainers and wild Pokémon have none) | ×0.9–×1.1 |
+| A trainer's | fixed | fixed | fixed — exact stats, nature shown |
+
+A trainer's Pokémon are exact: every in-game trainer's team is in
+`lua/autorun/06_trainers.lua`, from the game's own data. The trainer comes
+from "Pokémon Trainer Hop sent out …!" or "You are challenged by …!", and the
+species and level off their HP panel pick the Pokémon from the team.
 
 Before a level is read the rows are base stats ("base stats" in the title
 bar). A name that isn't a species — a nickname — shows as "not in the
@@ -72,6 +78,8 @@ Pokédex". A species with a Galarian form shows that form.
 | `[you] Scorbunny` | Your Pokémon, from the battle text or your HP panel. |
 | `[foe] Wooloo` | The opponent's, from the battle text or their HP panel. |
 | `[you] Scorbunny Lv.6` | A level read off an HP panel (`[foe]` for theirs). |
+| `[trainer] Pokemon Trainer Hop` | The trainer you're fighting, from the battle text. |
+| `[foe] Grookey Lv.5 of Pokemon Trainer Hop: exact stats, Hardy` | Their Pokémon was found in their team. |
 | `the OCR module isn't available ...` | `bin/ocr.dll` is missing or failed to load. |
 | `OCR failed: ...` | The module reported an error for a job. |
 | `frame format ... is not supported` | The capture isn't NV12. |
@@ -96,6 +104,20 @@ python3 dev/sim.py                       # every screenshot in dev/samples
 python3 dev/sim.py dev/samples/hop_1.webp
 python3 dev/sim.py --png out --say "Go! Scorbunny!" dev/samples/battle_moves.webp
 ```
+
+[docs/wild.md](docs/wild.md) lists the wild Pokémon of every area — how
+they're met, levels, weather, rates — with Sword and Shield exclusives marked.
+
+Trainer teams and the wild list are dumped from your own game files with
+pkNX (`dev/pknx-export`, needs a clone of kwsch/pkNX and Oodle's
+`oo2core_8_win64.dll` beside the exe), then generated:
+
+```
+dotnet run -c Release --project dev/pknx-export -- ROMs/out ROMs/export
+python3 dev/gen_romdata.py ROMs/export
+```
+
+`ROMs/` (game files) is never committed.
 
 `dev/sim.py` runs the addon under a mocked engine, with a stand-in for the
 `ocr` module (same API, Python RapidOCR underneath — its readings are close to
