@@ -78,6 +78,22 @@ local function sysOpen(frame, sx, sy)     -- mid-dark grey and flat
 end
 -- The area banner's magenta band: flat in luma, and magenta in chroma -- the
 -- chroma plane's rows follow the luma's, U,V interleaved at half size.
+-- The owned-species ball by the opponent's HP bar: red chroma on both rows.
+local function ownedBall(frame, sx, sy)
+    local o = SWSH.OWNED
+    local x0 = math.floor(o.x0 * sx / 2) * 2
+    local w = math.floor((o.x1 - o.x0) * sx / 2) * 2
+    for _, y in ipairs(o.rows) do
+        local s = frame:region(x0, frame:height() + math.floor(y * sy / 2), w, 1)
+        local red = 0
+        for i = 2, #s, 2 do
+            if s:byte(i) >= 165 then red = red + 1 end
+        end
+        if red < 3 then return false end
+    end
+    return true
+end
+
 local function bannerOpen(frame, sx, sy)
     local lo, hi = probeRange(frame, SWSH.AREA.band, sx, sy)
     if not (lo >= 50 and hi <= 115 and hi - lo <= 35) then return false end
@@ -104,6 +120,7 @@ end
 local frameNo, warned = 0, false
 local see                -- see(reading or nil), under "collect"
 local jobKind = {}       -- job id -> what it read ("box", "battle", "sys", "sub", "panel")
+local jobBall = {}       -- job id -> the owned ball was by the opponent's HP bar (panels)
 
 function SWSH.mod:OnFrame(frame)
     frameNo = frameNo + 1
@@ -120,7 +137,7 @@ function SWSH.mod:OnFrame(frame)
     local sx, sy = frame:width() / SWSH.REF_W, frame:height() / SWSH.REF_H
     local all = SWSH.mod:get("read_all")    -- off: battle text only
     S.menu = menuOpen(frame, sx, sy)
-    local kind, regions = nil, {}
+    local kind, regions, ball = nil, {}, false
     if SWSH.mod:get("route_info") ~= "off" and bannerOpen(frame, sx, sy) then
         -- Entering an area: its name (50_route.lua).
         see(nil)
@@ -155,6 +172,7 @@ function SWSH.mod:OnFrame(frame)
         see(nil)
         kind = "panel"
         S.battleFrame = frameNo
+        ball = ownedBall(frame, sx, sy)
         for side, p in pairs(SWSH.HPBOX) do
             for what, r in pairs(p) do
                 regions[#regions + 1] = region(side .. "." .. what, r.x0, r.x1, { r.y0, r.y1 }, sx, sy)
@@ -173,7 +191,7 @@ function SWSH.mod:OnFrame(frame)
     end
 
     local id = ocr.read(frame, regions)     -- nil, "busy": try again next time
-    if id then jobKind[id] = kind end
+    if id then jobKind[id], jobBall[id] = kind, ball end
 end
 
 ----------------------------------------------------------------- collect --
@@ -223,14 +241,15 @@ local function emit(r)
     if S.logged and S.logged.text == r.text then return end
     S.logged = r
     if r.kind == "battle" and SWSH.onBattleText then SWSH.onBattleText(r.lines) end
+    if SWSH.onCatchText then SWSH.onCatchText(r.lines) end
     if SWSH.mod:get("log_text") then
         SWSH.log(SWSH.LV.dialogue, table.unpack(format(r.kind, r.name, r.lines)))
     end
 end
 
 local function apply(res)
-    local kind = jobKind[res.id]
-    jobKind[res.id] = nil
+    local kind, ball = jobKind[res.id], jobBall[res.id]
+    jobKind[res.id], jobBall[res.id] = nil, nil
     if res.error then
         SWSH.log(SWSH.LV.important, SWSH.C.error, "OCR failed: ", res.error)
         return
@@ -250,6 +269,7 @@ local function apply(res)
             local l = r.lines[1]
             if l and l.score >= MIN_SCORE then got[r.key] = l.text end
         end
+        got.ball = ball
         if SWSH.onPanels then SWSH.onPanels(got) end
         return
     end

@@ -9,6 +9,24 @@ using pkNX.Structures;
 using pkNX.Structures.FlatBuffers;
 using pkNX.Structures.FlatBuffers.SWSH;
 
+// pknx-export text <message dir> <out.txt>: every line of every text file, for
+// finding the game's own wording.
+if (args[0] == "text")
+{
+    var cfg = new TextConfig(GameVersion.SWSH);
+    var lines = new List<string>();
+    foreach (var f in Directory.EnumerateFiles(args[1], "*.dat", SearchOption.AllDirectories).Order())
+    {
+        var t = new TextFile(File.ReadAllBytes(f), cfg);
+        var n = Path.GetRelativePath(args[1], f);
+        var all = t.Lines;      // decoded on every get: once only
+        for (int i = 0; i < all.Length; i++) lines.Add($"{n}\t{i}\t{all[i].Replace("\n", "\\n")}");
+    }
+    File.WriteAllLines(args[2], lines);
+    Console.WriteLine($"{lines.Count} lines");
+    return 0;
+}
+
 var (loc, res) = GameLocation.GetGame(args[0]);
 if (loc == null) { Console.Error.WriteLine($"Not a game folder: {res}"); return 1; }
 var rom = (GameManagerSWSH)GameManager.GetManager(loc, (int)GameLanguage.English);

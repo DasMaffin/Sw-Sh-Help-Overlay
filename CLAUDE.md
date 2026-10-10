@@ -48,5 +48,10 @@
   h + y/2, ...)`, U,V interleaved), read as kind "area" -> `SWSH.onArea` in
   `50_route.lua` (FRLG route panel port; data `08_areas.lua` keyed by banner
   name). `SWSH.inBattle()` = battle box/menu seen in the last ~4 s.
+- Caught marks: `SWSH.onCatchText` (40_battle, called from the reader's
+  emit for every kind; phrases from the game's btl_std/btl_app/pokedex text --
+  `pknx-export text <message dir> <out>` dumps all game text) and the owned
+  ball right of a wild foe's HP bar (`SWSH.OWNED`, red chroma; read with the
+  panels as `got.ball`, marked in `onPanels`).
 - `45_dex.lua` is the Pokedex checklist, ported from pkmn_stats'
   `75_ui_dex.lua` (FRLG); caught marks in `data` file caught.txt by DEX key.

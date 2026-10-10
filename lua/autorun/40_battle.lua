@@ -147,18 +147,29 @@ local function set(side, name, dex)
              SWSH.C.text, who.dex and who.dex[1] or (name .. " (not in the Pokedex)"))
 end
 
+-- A catch, in the game's own words (its battle and Pokedex text files):
+--   "Gotcha! Wooloo was caught!"         "Wooloo’s data was added to the Pokédex."
+--   "You caught Wooloo!"                 "Wooloo has been sent to a Box!"
+-- Any box's text (the last is a system message, read with "read_all").
+-- Ticks the species in the Pokedex checklist. Not "was caught in a sticky
+-- web!", which doesn't end there.
+local CATCH = { "([^!]-) was caught!", "^(.-)[’']s data was added to the Pok",
+                "You caught ([^!]+)!", "^(.-) has been sent to a Box" }
+function SWSH.onCatchText(lines)
+    if not SWSH.caught then return end
+    local s = table.concat(lines, " ")
+    for _, pat in ipairs(CATCH) do
+        local name = s:match(pat)
+        local e = name and lookup((name:gsub("^Gotcha!%s*", ""):gsub("^%s+", "")))
+        if e then SWSH.caught.mark(e, "caught") return end
+    end
+end
+
 function SWSH.onBattleText(lines)
     local s = table.concat(lines, " ")
     for _, opener in ipairs(MINE) do
         local name = s:match(opener .. "([^!,]+)!")
         if name then set("mine", name) return end
-    end
-    -- "Gotcha! Wooloo was caught!": ticks it in the Pokedex checklist.
-    local caught = s:match("([^!]-) was caught!")
-    if caught and SWSH.caught then
-        local e = lookup((caught:gsub("^%s+", "")))
-        if e then SWSH.caught.mark(e, "caught in battle") end
-        return
     end
     local by = s:match("challenged by (.-)!")
     if by then setTrainer(by) return end
@@ -207,15 +218,22 @@ end
 function SWSH.onPanels(got)
     for _, side in ipairs({ "mine", "foe" }) do
         local name = got[side .. ".name"]
+        local dex
         if name then
             -- The gender sign after the name reads as a stray letter or two.
-            local dex = lookup(name) or lookup(name:gsub("[^%w]*%w?[^%w]*$", ""))
+            dex = lookup(name) or lookup(name:gsub("[^%w]*%w?[^%w]*$", ""))
             if steady(side .. ".name", dex) and not (B[side] and B[side].dex == dex) then
                 set(side, dex[1], dex)
                 resolve(B[side])
             end
         end
         local who = B[side]
+        -- The ball by a wild opponent's HP bar: you have its species. Taken
+        -- only with its name read off the same panel, twice.
+        if side == "foe" and SWSH.caught and steady("foe.ball", got.ball and dex or nil)
+           and who and who.dex == dex then
+            SWSH.caught.mark(dex, "ball by the HP bar")
+        end
         local lv = tonumber((got[side .. ".lv"] or ""):match("(%d+)%D*$"))
         if lv and (lv < 1 or lv > 100) then lv = nil end
         if who and steady(side .. ".lv", lv) and who.lv ~= lv then

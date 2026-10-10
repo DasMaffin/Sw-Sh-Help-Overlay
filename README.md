@@ -95,8 +95,15 @@ both DLCs) with a ball to tick.
 - **National / Galar / Armor / Tundra** picks the dex — each regional one in
   its own order and numbers. The count (`12/400`) is within that dex.
 - **Showing:** cycles everything / still missing / caught.
-- **The ball** toggles caught. "Gotcha! … was caught!" in the battle text ticks
-  it by itself.
+- **The ball** toggles caught. It also ticks itself:
+  - from the battle text, in the game's own words: "Gotcha! … was caught!",
+    "…’s data was added to the Pokédex.", "You caught …!" (and "… has been
+    sent to a Box!" with *Read text outside battles too* on);
+  - from the Poké Ball the game puts right of a wild Pokémon's HP bar when you
+    already have its species — read with the HP panels while a battle menu is
+    up, and only with that panel's name read the same twice.
+
+  Nothing ever unticks one but a click.
 - **Hovering a row** says where it's found in the wild in the version you're
   playing, best rate first — or that only the other version has it, or that no
   wild table does (evolve, raid, trade or gift).
@@ -118,7 +125,7 @@ both DLCs) with a ball to tick.
 | `[trainer] Pokemon Trainer Hop` | The trainer you're fighting, from the battle text. |
 | `[foe] Grookey Lv.5 of Pokemon Trainer Hop: exact stats, Hardy` | Their Pokémon was found in their team. |
 | `[area] Rolling Fields (Wild Area)` | The area banner was read (`(no wild Pokemon)` for a town). |
-| `[dex] Wooloo caught (caught in battle)` | A Pokédex checklist mark changed (`(clicked)` when by hand). |
+| `[dex] Wooloo caught (caught)` | A Pokédex checklist mark changed: `(caught)` from the text, `(ball by the HP bar)`, `(clicked)` by hand. |
 | `the OCR module isn't available ...` | `bin/ocr.dll` is missing or failed to load. |
 | `OCR failed: ...` | The module reported an error for a job. |
 | `frame format ... is not supported` | The capture isn't NV12. |

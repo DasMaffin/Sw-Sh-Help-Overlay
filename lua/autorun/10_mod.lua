@@ -113,6 +113,11 @@ SWSH.HPBOX = {
              lv   = { x0 = 1800, x1 = 1915, y0 = 40,  y1 = 86 } },
 }
 
+-- The Poke Ball right of a WILD Pokemon's HP bar: you have caught its species
+-- before. A red ring (V ~200 in chroma) on the white panel (V 128); two rows
+-- across it, above and below its centre band.
+SWSH.OWNED = { x0 = 1868, x1 = 1910, rows = { 92, 108 } }
+
 -- The area banner, shown a few seconds on entering an area: the name in white
 -- on a flat magenta band at the bottom right ("Rolling Fields"), the region
 -- under it on grey ("Wild Area"). Told by the band's colour: magenta has a

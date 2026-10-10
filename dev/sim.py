@@ -8,7 +8,7 @@
 only battle text). --png DIR saves each picture with the overlays drawn on it (DIR/<name>.png).
 --dex opens the Pokedex checklist and paints it too; --hover X,Y puts the
 pointer there (over a row: its "where to get it" card).
---say feeds a battle line to SWSH.onBattleText first, as if
+--say feeds a battle line to SWSH.onBattleText (and onCatchText) first, as if
 it had been read. After each picture the stats overlay is painted and what it
 would draw is printed as [draw] lines.
 
@@ -206,6 +206,7 @@ def main():
     for line in say:
         print("== say:", line)
         L.globals().SWSH.onBattleText(L.table(line))
+        L.globals().SWSH.onCatchText(L.table(line))       # as the reader's emit() does
 
     for path in paths:
         print("==", os.path.basename(path))
