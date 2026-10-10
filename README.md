@@ -20,14 +20,15 @@ addons/Sw-Sh-Help-Overlay/
 
 Asynchronously, so the video never waits for OCR:
 
-1. **OnFrame** (every 6th frame) checks a few pixels to see what's on screen —
+1. **OnFrame** (every frame) checks a few pixels to see what's on screen —
    the white dialogue box (and the speaker's name plate above it), the dark
    system message box, or neither (then it tries the cutscene subtitle lines)
    — and passes that box's lines to `ocr.read(frame, regions)`. The module
    copies them and returns at once; if it is still busy, the frame is skipped.
 2. **Think** collects finished results with `ocr.poll()`. A box is printed once
    its text is the same twice running (the typewriter animation is done), and
-   again only after it has changed or gone away.
+   again only after it has changed or gone away. A box closed before it was
+   read twice (mashing A) is printed from its last reading when it goes.
 
 Each region is one line of text, read in the module's `line` mode
 (recognition only): faster and more accurate than letting it find the text.

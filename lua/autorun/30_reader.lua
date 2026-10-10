@@ -14,12 +14,12 @@ local S = {
     kind  = nil,     -- what is on screen: "box", "sys", "sub" or nil
     lines = {},      -- the latest reading, line by line
     name  = "",      -- the speaker, "" without a name plate
-    pending = nil,   -- the latest text, until it has been seen twice
-    logged  = nil,   -- the last text printed
+    pending = nil,   -- the latest reading { kind, name, lines, text, body }
+    logged  = nil,   -- the last reading printed
 }
 SWSH.state = S
 
-local EVERY     = 6      -- offer a job every Nth frame (the module may still be busy)
+local EVERY     = 1      -- offer a job every Nth frame (the module may still be busy)
 local MIN_SCORE = 0.6    -- below this a line is noise, not text
 local SUB_SCORE = 0.85   -- subtitles have no box to prove they're there: stricter
 
@@ -172,6 +172,22 @@ local function format(kind, name, lines)
     return args
 end
 
+-- Two readings of the same box: the typewriter grew it, or the OCR read it a
+-- little differently. They share most of their start.
+local function sameBox(a, b)
+    local n, i = math.min(#a, #b), 0
+    while i < n and a:byte(i + 1) == b:byte(i + 1) do i = i + 1 end
+    return i >= n / 2
+end
+
+local function emit(r)
+    if S.logged and S.logged.text == r.text then return end
+    S.logged = r
+    if SWSH.mod:get("log_text") then
+        SWSH.log(SWSH.LV.dialogue, table.unpack(format(r.kind, r.name, r.lines)))
+    end
+end
+
 local function apply(res)
     local kind = jobKind[res.id]
     jobKind[res.id] = nil
@@ -198,22 +214,28 @@ local function apply(res)
 
     S.kind  = #out > 0 and kind or nil
     S.lines, S.name = out, name
-    if #out == 0 then
-        -- Nothing on screen: the next time the same words appear, print them.
-        S.pending, S.logged = nil, nil
-        return
+    local cur = nil
+    if #out > 0 then
+        local body = table.concat(out, "\n")
+        cur = { kind = kind, name = name, lines = out, body = body,
+                text = (kind or "") .. "\n" .. name .. "\n" .. body }
     end
+    local p = S.pending
 
     -- Print once the text is the same twice running: the typewriter is done.
-    local text = (kind or "") .. "\n" .. name .. "\n" .. table.concat(out, "\n")
-    if text ~= S.pending then
-        S.pending = text
-    elseif text ~= S.logged then
-        S.logged = text
-        if SWSH.mod:get("log_text") then
-            SWSH.log(SWSH.LV.dialogue, table.unpack(format(kind, name, out)))
-        end
+    if cur and p and cur.text == p.text then
+        emit(cur)
+        return
     end
+    -- Mashing through text can close a box before it was read twice. When it
+    -- closes, or other text takes its place, print its last reading -- unless
+    -- that is only the typewriter or OCR noise on what was printed.
+    if p and not (cur and sameBox(p.body, cur.body)) then
+        local l = S.logged
+        if not (l and sameBox(l.body, p.body) and #p.body <= #l.body) then emit(p) end
+    end
+    S.pending = cur
+    if not cur then S.logged = nil end   -- the same words again later are new
 end
 
 function SWSH.mod:Think()
