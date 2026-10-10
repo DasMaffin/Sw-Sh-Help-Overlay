@@ -278,6 +278,7 @@ overlay.add("swsh.debug", {
         elseif S.kind == "sub" then
             for _, band in ipairs(SWSH.SUB.lines) do box(SWSH.SUB.x0, SWSH.SUB.x1, band, 170, 150, 220) end
         end
+        if #S.lines == 0 then return end     -- nothing read: no empty bar
         d:rect(px + 8, py + 8, 900, 52, 0, 0, 0, 170)
         d:text(px + 16, py + 12, ((S.name ~= "" and (S.name .. ": ")) or "")
                .. (S.lines[1] or ""), 18, 255, 255, 255)
