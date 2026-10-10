@@ -17,7 +17,8 @@ addons/Sw-Sh-Help-Overlay/
 ## What it does (so far)
 
 When the white dialogue box is on screen it reads the two lines of text, and
-the speaker's name from the dark plate above it when there is one. Once
+the speaker's name from the dark plate above it when there is one. Without a
+box it looks for cutscene subtitles: white text straight over the scene. Once
 the typewriter animation has stopped, it prints them to the console, once per
 box (the same text prints again only after the box has closed):
 
@@ -45,8 +46,10 @@ Older builds get the same lines without colour or levels.
 |---|---|
 | `<line 1> / <line 2>` | A finished box. |
 | `Hop: <line 1> / <line 2>` | A finished box with a speaker's name plate (name in orange). |
+| `[cutscene] <line 1> / <line 2>` | A cutscene subtitle (white text over the scene, no box). |
 | `... [glyphs 42/109 en]` | Appended to the first finished box after letters were learned: characters the reader knows / distinct characters in that language's game text. Touching pairs (`w.`) don't count. |
 | `DEV learned new letter 'M' from "Meeeh?" (read as "[?]eeeh?")` | Self-teaching found the letter. A pair like `'w.'` means two characters whose ink touches. `; "Lucy" taken as a name` means that word matched a name placeholder in the game text. |
+| `DEV learned new letter 'v' (subtitle) from "..." ...` | Learned from a cutscene subtitle. |
 | `DEV learned new letter 'H' (name plate) from "Hop" ...` | Learned from the name plate. Same atlas as everything else; the plate's heavier letters are just extra variants. |
 | `DEV learned new letter 'l' (typed in; was read as "I")` | Learned from the manual teach panel (`line 1\|line 2\|name`). |
 | `DEV could not learn from "...": <reason>` | `not in the game text`, `ambiguous` (several answers fit), `too many unknowns` (more than 3), `too little known text`. It waits for another box. |

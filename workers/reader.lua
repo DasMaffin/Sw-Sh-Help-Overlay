@@ -25,6 +25,7 @@
 local GR, GC = 12, 6             -- fingerprint grid: rows x columns
 local INK    = 0.5               -- fraction of the line's contrast that is ink
 local MIN_RANGE = 60             -- less contrast than this: nothing to read
+local SUB_MIN = 3                -- glyphs a subtitle line needs to count
 local ABOVE  = 0.69               -- baseline window: this * lineH above it
 local SPACE  = 0.17              -- a gap wider than this * lineH is a space
 local SHAPE_W = 30               -- weight of width/top/bottom differences
@@ -38,7 +39,12 @@ local MISSING = "[?]"
 
 -- One line: rows is an array of strings, each `w` bytes of luma.
 -- Returns the glyphs found, left to right: { x0, x1, f, wn, gapBefore }.
-local function segment(rows, w, light)
+-- How bright-and-colourless a subtitle pixel must be to count as ink: luma
+-- within OVER_RAMP of the line's white ramps 0..1, and any colour (UV away
+-- from neutral 128) beyond OVER_GREY fades it out over OVER_FADE.
+local OVER_RAMP, OVER_GREY, OVER_FADE = 70, 10, 20
+
+local function segment(rows, w, light, over)
     local h = #rows
     local lo, hi = 255, 0
     for y = 1, h do
@@ -50,6 +56,8 @@ local function segment(rows, w, light)
         end
     end
     if hi - lo < MIN_RANGE then return {}, lo, hi end
+    -- A subtitle is white: a line whose brightest pixel isn't is scenery.
+    if over and hi < 200 then return {}, lo, hi end
 
     -- Ink per pixel, 0 (paper) .. 1 (ink), measured against the paper RIGHT
     -- THERE, not the line's overall brightest pixel. The box's right end
@@ -61,7 +69,34 @@ local function segment(rows, w, light)
     -- the text's own colour is the line's darkest. With `light` (white text
     -- on a dark plate) the same, mirrored. So a glyph's fingerprint is the
     -- same whatever it is drawn on.
-    local paper = {}
+    local paper, ink = {}, {}
+    if over then
+        -- Cutscene subtitles: white text straight over the scene, no box,
+        -- no outline. Nothing behind them is paper, so instead: ink is what
+        -- is nearly as bright as the text AND colourless. Brightness alone
+        -- isn't enough -- Leon's yellow fur peaks at luma 233 against the
+        -- text's 234 -- but the fur is yellow and the text is white, and
+        -- NV12 carries colour (U,V, one pair per 2x2 pixels) right after
+        -- the luma rows. `over.uv` is those rows, `over.ox`/`over.oy` how
+        -- the window's first pixel sits in its 2x2 cell.
+        local uv, ox, oy = over.uv, over.ox or 0, over.oy or 0
+        for y = 1, h do
+            local r, row = rows[y], {}
+            local u = uv[(y - 1 + oy) // 2 + 1] or ""
+            for x = 1, w do
+                local t = (r:byte(x) - (hi - OVER_RAMP)) / OVER_RAMP
+                if t > 0 then
+                    local i = ((x - 1 + ox) // 2) * 2 + 1
+                    local cu, cv = u:byte(i) or 128, u:byte(i + 1) or 128
+                    local c = math.abs(cu - 128) + math.abs(cv - 128)
+                    if c > OVER_GREY then t = t * (1 - (c - OVER_GREY) / OVER_FADE) end
+                end
+                row[x] = t < 0 and 0 or (t > 1 and 1 or t)
+            end
+            ink[y] = row
+        end
+        goto cut
+    end
     for x = 1, w do
         local p = light and 255 or 0
         for y = 1, h do
@@ -72,8 +107,8 @@ local function segment(rows, w, light)
         end
         paper[x] = p
     end
+    do
     local inkLevel = light and hi or lo
-    local ink = {}
     for y = 1, h do
         local r, row = rows[y], {}
         for x = 1, w do
@@ -84,6 +119,8 @@ local function segment(rows, w, light)
         end
         ink[y] = row
     end
+    end
+    ::cut::
 
     -- Cut the line into glyphs by CONNECTED INK, not by empty columns. The
     -- font kerns: a comma tucks under an 'r', a full stop under a 'w', so
@@ -240,8 +277,8 @@ local function match(g, atlas)
     return best, bestD, secondD
 end
 
-local function readLine(rows, w, atlas, light)
-    local glyphs = segment(rows, w, light)
+local function readLine(rows, w, atlas, light, over)
+    local glyphs = segment(rows, w, light, over)
     local out, raw, worst, missing = {}, {}, 0, 0
     for i, g in ipairs(glyphs) do
         if i > 1 and g.gap > SPACE then
@@ -262,20 +299,34 @@ end
 
 -- job = { seq, learn = bool,
 --         lines = { { rows = {...}, w = <bytes per row>, light = bool,
---                     style = "d" | "n", whole = bool }, ... } }
+--                     style = "d" | "n" | "s", whole = bool,
+--                     over = { uv = {...}, ox, oy } }, ... } }
+-- (over: a cutscene subtitle -- white text over the scene, with the UV rows
+-- behind it; see segment)
 -- (style only labels the line -- "n" is the name plate -- for logs and
 -- teaching; it doesn't change how glyphs are matched)
 -- Each line comes back as { text, raw, worst, missing, style, whole,
 -- glyphs? }; style and whole are echoed for whoever learns from it.
 function onJob(job)
     local atlas = ATLAS or {}
-    local res = { seq = job.seq, lines = {} }
+    local res = { seq = job.seq, kind = job.kind, lines = {} }
     for i, line in ipairs(job.lines) do
         local style = line.style or "d"
         local text, glyphs, worst, missing, raw =
-            readLine(line.rows, line.w, atlas, line.light)
+            readLine(line.rows, line.w, atlas, line.light, line.over)
         local L = { text = text, raw = raw, worst = worst, missing = missing,
                     style = style, whole = line.whole }
+        -- A subtitle has no box to prove it is there, so the text has to:
+        -- at least SUB_MIN glyphs, at least half of them known letters.
+        -- Scenery that happens to be white makes blobs, not words.
+        -- (Not when the caller asked for glyphs to learn from: it already
+        -- knows there is text, and the atlas may not know a letter of it.)
+        if line.over and #glyphs > 0 and not job.learn then
+            if #glyphs < SUB_MIN or missing * 2 > #glyphs then
+                text, raw, missing, glyphs = "", "", 0, {}
+                L.text, L.raw, L.missing = "", "", 0
+            end
+        end
         -- Fingerprints come back when asked for, or when something was
         -- unknown -- so whoever wants to learn it has the shape in hand.
         if job.learn or missing > 0 then

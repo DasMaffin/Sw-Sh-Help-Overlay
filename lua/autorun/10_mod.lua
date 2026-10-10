@@ -30,6 +30,7 @@ SWSH.C = {
     good    = { 120, 220, 140 },   -- learned something
     letter  = { 255, 220, 100 },   -- the letter itself
     name    = { 255, 200, 120 },   -- the speaker's name
+    cutscene = { 170, 150, 220 },  -- the [cutscene] tag
     warn    = { 255, 170,  80 },   -- couldn't learn / something's off
     error   = { 255,  90,  90 },
 }
@@ -84,6 +85,15 @@ SWSH.BOX = {
     -- margin left of the text, and the strip above the first line.
     paper = { { x = 388, y0 = 880, y1 = 1034 },     -- a column
               { y = 878, x0 = 450, x1 = 1400 } },   -- a row
+}
+
+-- Cutscene subtitles: white text straight over the scene, no box, no
+-- outline, a little lower and further right than the box's text (same font,
+-- same size, same line spacing). x0 is even so the window starts on a
+-- 2x2 colour cell -- the reader needs the colour to tell white from yellow.
+SWSH.SUB = {
+    x0 = 404, x1 = 1516,
+    lines = { { 922, 989 }, { 1000, 1067 } },
 }
 
 -- The speaker's name plate above the box's top-left: white text, centred,

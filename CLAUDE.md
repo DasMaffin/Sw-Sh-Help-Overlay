@@ -19,6 +19,13 @@
   A match past UNKNOWN still counts if within 2x and the next other letter
   is 2x further (CLEAR). Lines carry `style` ("d"/"n") only as a label for
   logs/teaching; the plate is taught as a whole game-text entry (`whole`).
+- Cutscene subtitles (`SWSH.SUB`, read only while the box is closed): white
+  text over the scene, no outline. Ink = near the line's white AND
+  colourless, using NV12's U,V plane (rows after the luma; `grabColour`) --
+  luma alone can't tell white text from pale-yellow highlights. No box to
+  prove it's there, so a subtitle line needs >= 3 glyphs, at least half
+  known (skipped when glyphs are requested for learning). Samples with kind
+  "sub" in `dev/samples/truth.txt` (4th column).
 - Fingerprints are measured from the line's BASELINE (median glyph bottom),
   not the band edge, so 1-3 px offsets don't matter; the atlas keeps up to 8
   DISTINCT variants per char (near-duplicates < 1.0 skipped) because a

@@ -75,7 +75,7 @@ local function keep(ch, g, st)
     return true
 end
 
-local STYLE_NAME = { d = "", n = " (name plate)" }
+local STYLE_NAME = { d = "", n = " (name plate)", s = " (subtitle)" }
 
 -- Count the characters of a known-text string the way the reader counts
 -- glyphs: one per character, spaces skipped.
@@ -220,8 +220,8 @@ local panel = overlay.add("swsh.dev.teach", {
 })
 panel.children[3].onClick = function()
     local t = panel.children[2].text or ""
-    if not SWSH.state.open then
-        teachMsg = "No dialogue box on screen."
+    if not SWSH.state.kind then
+        teachMsg = "No dialogue box or subtitle on screen."
     elseif t == "" then
         teachMsg = "Type the text first."
     else

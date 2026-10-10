@@ -10,7 +10,8 @@ against them in the engine.
     python3 dev/gen_atlas.py --check  # read every sample with the atlas
 
 Samples are 1920x1080 screenshots listed in dev/samples/truth.txt as
-"<file>\t<line 1>|<line 2>" or "<file>\t<line 1>|<line 2>\t<speaker name>". dev/learned/*.txt are learned.txt files copied
+"<file>\t<line 1>|<line 2>[\t<speaker name>[\t<kind>]]", kind "box" (the
+default) or "sub" (a cutscene subtitle: white text over the scene). dev/learned/*.txt are learned.txt files copied
 out of an install's data folder (written by the DEV teaching layer); their
 glyphs are baked in after the samples', up to PER_CHAR per character. The geometry below must match SWSH.BOX in
 lua/autorun/10_mod.lua.
@@ -28,6 +29,8 @@ X0, X1 = 400, 1492                      # text columns, 1080p
 LINES = [(889, 956), (967, 1034)]       # [top, bottom) rows of each line
 NX0, NX1 = 345, 728                     # the name plate's text columns
 NAME = (790, 859)                       # ... and rows (white on dark)
+SX0, SX1 = 404, 1516                    # cutscene subtitles: columns (even)
+SUBS = [(922, 989), (1000, 1067)]       # ... and rows of each line
 PER_CHAR = 8                            # distinct variants kept per character
 SAME = 1.0      # closer than this to a kept variant: a duplicate, skipped
 
@@ -55,9 +58,24 @@ def add(entries, count, e):
 
 def luma(path):
     """Limited-range BT.709 luma, which is what an HD capture's Y plane holds."""
+    return nv12(path)[0]
+
+
+def nv12(path):
+    """(Y, UV) as an HD capture's NV12 frame holds them: limited-range BT.709
+    luma, and a half-size plane of interleaved U,V (one pair per 2x2)."""
     im = np.asarray(Image.open(path).convert("RGB")).astype(float)
-    y = 16 + 0.1826 * im[..., 0] + 0.6142 * im[..., 1] + 0.0620 * im[..., 2]
-    return np.clip(y, 0, 255).astype(np.uint8)
+    R, G, B = im[..., 0], im[..., 1], im[..., 2]
+    y = 16 + 0.1826 * R + 0.6142 * G + 0.0620 * B
+    u = 128 - 0.1006 * R - 0.3386 * G + 0.4392 * B
+    v = 128 + 0.4392 * R - 0.3989 * G - 0.0403 * B
+    h, w = y.shape
+    h2, w2 = h // 2 * 2, w // 2 * 2
+    sub = lambda c: c[:h2, :w2].reshape(h2 // 2, 2, w2 // 2, 2).mean(axis=(1, 3))
+    uv = np.empty((h2 // 2, w2), float)
+    uv[:, 0::2], uv[:, 1::2] = sub(u), sub(v)
+    c = lambda a: np.clip(a, 0, 255).astype(np.uint8)
+    return c(y), c(uv)
 
 
 def runtime():
@@ -67,14 +85,20 @@ def runtime():
     return L
 
 
-def job(L, Y, name=True):
+def job(L, Y, name=True, kind="box", UV=None):
     def line(x0, x1, a, b, **kw):
         d = {b"rows": L.table(*[Y[y, x0:x1].tobytes() for y in range(a, b)]), b"w": x1 - x0}
         d.update({k.encode(): v for k, v in kw.items()})
         return L.table_from(d)
-    lines = [line(X0, X1, a, b, style=b"d") for a, b in LINES]
-    if name:
-        lines.append(line(NX0, NX1, *NAME, style=b"n", light=True, whole=True))
+    if kind == "sub":
+        def over(a, b):
+            rows = [UV[y, SX0:SX1].tobytes() for y in range(a // 2, (b + 1) // 2)]
+            return L.table_from({b"uv": L.table(*rows), b"ox": SX0 % 2, b"oy": a % 2})
+        lines = [line(SX0, SX1, a, b, style=b"s", over=over(a, b)) for a, b in SUBS]
+    else:
+        lines = [line(X0, X1, a, b, style=b"d") for a, b in LINES]
+        if name:
+            lines.append(line(NX0, NX1, *NAME, style=b"n", light=True, whole=True))
     return L.table_from({b"seq": 1, b"lines": L.table(*lines), b"learn": True})
 
 
@@ -84,11 +108,15 @@ def atlas_table(L, entries):
                      for c, w, t, b, f, st in entries])
 
 
-def read(L, path):
-    r = L.globals().onJob(job(L, luma(path)))
+def read(L, path, kind="box"):
+    Y, UV = nv12(path)
+    r = L.globals().onJob(job(L, Y, kind=kind, UV=UV))
     out = []
     for i in (1, 2, 3):
         ln = r[b"lines"][i]
+        if ln is None:
+            out.append(("", []))
+            continue
         gl = [(g[b"w"], g[b"t"], g[b"b"], list(g[b"f"].values()))
               for g in ln[b"glyphs"].values()]
         out.append((ln[b"text"].decode("utf-8", "replace"), gl))
@@ -102,13 +130,14 @@ def samples():
                 f = line.rstrip("\n").split("\t")
                 lines = f[1].split("|")
                 lines.append(f[2] if len(f) > 2 else "")      # the name plate
-                yield os.path.join(SAMPLES, f[0]), lines
+                kind = f[3] if len(f) > 3 and f[3] else "box"
+                yield os.path.join(SAMPLES, f[0]), lines, kind
 
 
 def build():
     entries, count = [], {}
-    for path, truth in samples():
-        for i, ((text, glyphs), want) in enumerate(zip(read(runtime(), path), truth)):
+    for path, truth, kind in samples():
+        for i, ((text, glyphs), want) in enumerate(zip(read(runtime(), path, kind), truth)):
             st = "n" if i == 2 else "d"
             chars = [c for c in want if c != " "]
             if len(chars) != len(glyphs):
@@ -145,10 +174,10 @@ def build():
 
 
 def check(entries):
-    for path, truth in samples():
+    for path, truth, kind in samples():
         L = runtime()
         L.globals().ATLAS = atlas_table(L, entries)
-        for (text, _), want in zip(read(L, path), truth):
+        for (text, _), want in zip(read(L, path, kind), truth):
             if want or text:
                 print(("ok  " if text == want else "BAD ") + text)
 

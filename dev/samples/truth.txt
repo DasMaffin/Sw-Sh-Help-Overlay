@@ -3,3 +3,4 @@ hop_2.webp	Bet I can make it to my house first, what with you|lugging about that
 hop_3.webp	Come on, Lee! And you, Lucy!|Bet I can beat the both of you back home!	Hop
 leon_grookey_woods.png	The Grass-type Pokémon Grookey, eh?|It’s soothing—like a nice, long walk in the woods.	Leon
 grookey_no_plate.png	The Grass-type Pokémon Grookey, is it?|
+subtitle_leon_1.png	All right!|Line up, everyone!		sub

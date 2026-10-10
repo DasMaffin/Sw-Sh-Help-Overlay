@@ -9,7 +9,8 @@ frame, runs the worker synchronously and prints what the mod logs.
 import os, sys, glob
 from lupa import lua54
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from gen_atlas import luma, ROOT
+import numpy as np
+from gen_atlas import nv12, ROOT
 
 MOCK = r'''
 local logs = {}
@@ -53,9 +54,13 @@ end
 def main():
     path = sys.argv[1]
     frames = int(sys.argv[2]) if len(sys.argv) > 2 else 16
-    Y = luma(path)
+    # A real NV12 buffer: the luma rows, then the half-height U,V rows, all
+    # at the luma's pitch -- frame:region reads on from one into the other.
+    Y, UV = nv12(path)
     h, w = Y.shape
-    blob = Y.tobytes()
+    uvp = np.zeros((UV.shape[0], w), np.uint8)
+    uvp[:, :UV.shape[1]] = UV
+    blob = Y.tobytes() + uvp.tobytes()
 
     def tolua(rt, v):
         if lua54.lua_type(v) == "table":
