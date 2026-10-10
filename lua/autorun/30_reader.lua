@@ -1,47 +1,39 @@
--- Reading the dialogue box: sample in OnFrame, recognise on the worker,
--- decide in Think.
+-- The reader: find which text is on screen, have the OCR module read it, print
+-- what it says.
 --
--- OnFrame only checks whether the box is open and copies its text rows out of
--- the frame -- one frame:region per line, because every call into the engine
--- costs ~1.6us whatever it carries. The worker (workers/reader.lua) turns
--- them into text. Think picks the answers up and prints a box's text once it
--- has stopped changing, i.e. once the typewriter animation has finished.
---
--- Hooks for other files (the dev teaching layer uses them):
---   "SwSh.Result" (res)    every reading, as the worker returned it
---   "SwSh.Think"  ()       once per Think, after results are applied
--- and SWSH.reader.requestGlyphs() / SWSH.reader.reshare(); SWSH.logSuffix,
--- if someone defines it, is appended (in the "stat" colour) to each printed
--- text line.
+-- ASYNCHRONOUS. OCR takes ~20-40ms a line, far too long for the frame loop.
+-- The OCR module (bin/ocr.dll, the native mod "ocr" -- a fork of RapidOcrOnnx)
+-- does it on its own thread:
+--   OnFrame  checks a few pixels to see which box is up, and hands that box's
+--            lines to ocr.read(frame, regions) -- which only copies them and
+--            returns. If the module is still busy, this frame is skipped.
+--   Think    collects a finished job with ocr.poll() and prints a box's text
+--            once it has stopped changing (the typewriter animation is done).
 
 local S = {
-    lines   = { "", "" },  -- the latest reading
-    name    = "",          -- the speaker, "" when the box has no name plate
-    kind    = nil,         -- "box", "sub" (a cutscene subtitle) or nil
-    open    = false,       -- is the box on screen right now
-    pending = nil,         -- text seen but not yet stable
-    stable  = 0,           -- how many reads in a row it has been the same
-    logged  = nil,         -- the last text printed
+    kind  = nil,     -- what is on screen: "box", "sys", "sub" or nil
+    lines = {},      -- the latest reading, line by line
+    name  = "",      -- the speaker, "" without a name plate
+    pending = nil,   -- the latest text, until it has been seen twice
+    logged  = nil,   -- the last text printed
 }
 SWSH.state = S
 
-local EVERY  = 4           -- read every Nth frame
-local STABLE = 2           -- identical reads before a text counts as final
+local EVERY     = 6      -- offer a job every Nth frame (the module may still be busy)
+local MIN_SCORE = 0.6    -- below this a line is noise, not text
+local SUB_SCORE = 0.85   -- subtitles have no box to prove they're there: stricter
 
-local reader = worker.spawn("workers/reader.lua")
-local wantGlyphs = false
-
-SWSH.reader = {}
-function SWSH.reader.reshare()
-    if reader then reader:share("ATLAS", SWSH.fullAtlas()) end
+-------------------------------------------------------------- the module --
+local ok, ocr = pcall(require, "ocr")
+if not ok then
+    SWSH.log(SWSH.LV.important, SWSH.C.error,
+             "the OCR module isn't available (install the native mod \"ocr\"): ", tostring(ocr))
+    ocr = nil
 end
--- Ask for every glyph's fingerprint on the next read, not only unknown ones.
-function SWSH.reader.requestGlyphs() wantGlyphs = true end
 
-local frameNo, seq, warned, shared = 0, 0, false, false
-
--- Luma range over a set of probes: { x, y0, y1 } columns and { y, x0, x1 }
--- rows, in 1080p pixels, every other sample.
+------------------------------------------------------------ what's up? --
+-- Luma range over probe strips: { x, y0, y1 } columns and { y, x0, x1 } rows,
+-- in 1080p pixels.
 local function probeRange(frame, probes, sx, sy)
     local lo, hi = 255, 0
     for _, p in ipairs(probes) do
@@ -62,172 +54,140 @@ local function probeRange(frame, probes, sx, sy)
     return lo, hi
 end
 
--- Is the white box there? Every paper probe must be bright and flat.
-local function boxOpen(frame, sx, sy)
+local function boxOpen(frame, sx, sy)     -- white and flat
     local lo, hi = probeRange(frame, SWSH.BOX.paper, sx, sy)
     return lo >= 170 and hi - lo <= 40
 end
-
--- Is the system message box there? Its grey is flat, darker than mid-grey.
-local function sysOpen(frame, sx, sy)
+local function plateOpen(frame, sx, sy)   -- dark and nearly flat
+    local lo, hi = probeRange(frame, SWSH.NAME.plate, sx, sy)
+    return hi <= 80 and hi - lo <= 50
+end
+local function sysOpen(frame, sx, sy)     -- mid-dark grey and flat
     local lo, hi = probeRange(frame, SWSH.SYS.ground, sx, sy)
     return hi <= 90 and lo >= 25 and hi - lo <= 25
 end
 
--- Is the name plate there? Its ground is dark and nearly flat.
-local function plateOpen(frame, sx, sy)
-    local lo, hi = probeRange(frame, SWSH.NAME.plate, sx, sy)
-    return hi <= 80 and hi - lo <= 50
+-- A line region for ocr.read, from 1080p coordinates.
+local function region(key, x0, x1, band, sx, sy)
+    local x, y = math.floor(x0 * sx), math.floor(band[1] * sy)
+    return { key = key, mode = "line", x = x, y = y,
+             w = math.floor(x1 * sx) - x, h = math.floor(band[2] * sy) - y }
 end
 
--- One band of text, as the worker wants it.
-local function grab(frame, x0, x1, band, sx, sy)
-    local xa = math.floor(x0 * sx)
-    local w  = math.floor(x1 * sx) - xa
-    local y0 = math.floor(band[1] * sy)
-    local h  = math.floor(band[2] * sy) - y0
-    local blob, rows = frame:region(xa, y0, w, h), {}
-    for r = 0, h - 1 do rows[r + 1] = blob:sub(r * w + 1, (r + 1) * w) end
-    return { rows = rows, w = w }
-end
-
--- The same band plus the colour rows behind it. NV12's interleaved U,V plane
--- starts right after the luma rows (frame:region reads on into it), one U,V
--- pair per 2x2 pixels. x0 is even (SWSH.SUB), so the window starts a cell.
-local function grabColour(frame, x0, x1, band, sx, sy)
-    local L = grab(frame, x0, x1, band, sx, sy)
-    local xa = math.floor(x0 * sx)
-    xa = xa - xa % 2
-    local y0 = math.floor(band[1] * sy)
-    local y1 = math.floor(band[2] * sy)
-    local uy0, uy1 = y0 // 2, (y1 + 1) // 2
-    local blob, uv = frame:region(xa, frame:height() + uy0, L.w + 1, uy1 - uy0), {}
-    local w = L.w + 1
-    for r = 0, uy1 - uy0 - 1 do uv[r + 1] = blob:sub(r * w + 1, (r + 1) * w) end
-    L.over = { uv = uv, ox = math.floor(x0 * sx) - xa, oy = y0 % 2 }
-    return L
-end
+-------------------------------------------------------------------- read --
+local frameNo, warned = 0, false
+local jobKind = {}       -- job id -> what it read ("box", "sys", "sub")
 
 function SWSH.mod:OnFrame(frame)
     frameNo = frameNo + 1
-    if frameNo % EVERY ~= 0 or not reader then return end
-
+    if not ocr or frameNo % EVERY ~= 0 then return end
     if frame:format() ~= "SDL_PIXELFORMAT_NV12" then
         if not warned then
-            SWSH.log(SWSH.LV.important, SWSH.C.error, "frame format ",
-                     tostring(frame:format()), " is not supported yet (NV12 only)")
             warned = true
+            SWSH.log(SWSH.LV.important, SWSH.C.error, "frame format ",
+                     tostring(frame:format()), " is not supported (NV12 only)")
         end
         return
     end
 
     local sx, sy = frame:width() / SWSH.REF_W, frame:height() / SWSH.REF_H
-    S.open = boxOpen(frame, sx, sy)
-    local B, N = SWSH.BOX, SWSH.NAME
-    local lines = {}
-    if not S.open and sysOpen(frame, sx, sy) then
+    local kind, regions = nil, {}
+    if boxOpen(frame, sx, sy) then
+        kind = "box"
+        for i, band in ipairs(SWSH.BOX.lines) do
+            regions[#regions + 1] = region(i, SWSH.BOX.x0, SWSH.BOX.x1, band, sx, sy)
+        end
+        if plateOpen(frame, sx, sy) then
+            regions[#regions + 1] = region("name", SWSH.NAME.x0, SWSH.NAME.x1, SWSH.NAME.band, sx, sy)
+        end
+    elseif sysOpen(frame, sx, sy) then
+        kind = "sys"
         for i, band in ipairs(SWSH.SYS.lines) do
-            local L = grab(frame, SWSH.SYS.x0, SWSH.SYS.x1, band, sx, sy)
-            L.style, L.light = "y", true
-            lines[i] = L
+            regions[#regions + 1] = region(i, SWSH.SYS.x0, SWSH.SYS.x1, band, sx, sy)
         end
-        seq = seq + 1
-        if reader:post({ seq = seq, lines = lines, learn = wantGlyphs, kind = "sys" }) then
-            wantGlyphs = false
-        end
-        return
-    end
-    if not S.open then
-        -- No box: maybe a cutscene subtitle. Whether there is one is for
-        -- the worker to say, from the text itself.
+    else
+        -- No box: maybe a cutscene subtitle. Only the OCR's confidence can
+        -- tell (see Think), so its lines are always read while nothing else is.
+        kind = "sub"
         for i, band in ipairs(SWSH.SUB.lines) do
-            local L = grabColour(frame, SWSH.SUB.x0, SWSH.SUB.x1, band, sx, sy)
-            L.style = "s"
-            lines[i] = L
+            regions[#regions + 1] = region(i, SWSH.SUB.x0, SWSH.SUB.x1, band, sx, sy)
         end
-        seq = seq + 1
-        if reader:post({ seq = seq, lines = lines, learn = wantGlyphs, kind = "sub" }) then
-            wantGlyphs = false
+    end
+
+    local id = ocr.read(frame, regions)     -- nil, "busy": try again next time
+    if id then jobKind[id] = kind end
+end
+
+----------------------------------------------------------------- collect --
+-- The game draws ’ and —; the English model only knows ASCII.
+local function tidy(s)
+    return (s:gsub("%-%-", "—"):gsub("'", "’"))
+end
+
+local function format(kind, name, lines)
+    local args = {}
+    if kind == "sys" then
+        args[#args + 1] = SWSH.C.system;   args[#args + 1] = "[system] "
+    elseif kind == "sub" then
+        args[#args + 1] = SWSH.C.cutscene; args[#args + 1] = "[cutscene] "
+    end
+    if name ~= "" then
+        args[#args + 1] = SWSH.C.name; args[#args + 1] = name .. ": "
+    end
+    args[#args + 1] = SWSH.C.text
+    args[#args + 1] = table.concat(lines, " / ")
+    return args
+end
+
+local function apply(res)
+    local kind = jobKind[res.id]
+    jobKind[res.id] = nil
+    if res.error then
+        SWSH.log(SWSH.LV.important, SWSH.C.error, "OCR failed: ", res.error)
+        return
+    end
+    local min = kind == "sub" and SUB_SCORE or MIN_SCORE
+    local lines, name = {}, ""
+    for _, r in ipairs(res.regions) do
+        local l = r.lines[1]
+        if l and l.text ~= "" and l.score >= min then
+            if r.key == "name" then name = tidy(l.text)
+            else lines[r.key] = tidy(l.text) end
         end
+    end
+    local out = {}
+    for i = 1, 2 do if lines[i] then out[#out + 1] = lines[i] end end
+    -- A subtitle needs real words: a confident read of scenery is still rare,
+    -- but a single stray "I" or "." is not a subtitle.
+    if kind == "sub" and not table.concat(out, " "):find("%a%a") then out = {} end
+
+    S.kind  = #out > 0 and kind or nil
+    S.lines, S.name = out, name
+    if #out == 0 then
+        -- Nothing on screen: the next time the same words appear, print them.
+        S.pending, S.logged = nil, nil
         return
     end
 
-    for i, band in ipairs(B.lines) do
-        local L = grab(frame, B.x0, B.x1, band, sx, sy)
-        L.style = "d"
-        lines[i] = L
-    end
-    -- The name plate is line 3, when there is one. `whole`: a name is all
-    -- there is on its plate, which is what lets it be taught from the
-    -- game's name lists.
-    if plateOpen(frame, sx, sy) then
-        local L = grab(frame, N.x0, N.x1, N.band, sx, sy)
-        L.style, L.light, L.whole = "n", true, true
-        lines[3] = L
-    end
-
-    seq = seq + 1
-    -- post refuses while the worker is busy; that frame is simply skipped.
-    if reader:post({ seq = seq, lines = lines, learn = wantGlyphs, kind = "box" }) then
-        wantGlyphs = false
+    -- Print once the text is the same twice running: the typewriter is done.
+    local text = (kind or "") .. "\n" .. name .. "\n" .. table.concat(out, "\n")
+    if text ~= S.pending then
+        S.pending = text
+    elseif text ~= S.logged then
+        S.logged = text
+        if SWSH.mod:get("log_text") then
+            SWSH.log(SWSH.LV.dialogue, table.unpack(format(kind, name, out)))
+        end
     end
 end
 
 function SWSH.mod:Think()
-    if not reader then return end
-    -- Shared here rather than at load so every autorun file (the dev layer's
-    -- learned glyphs included) has had its say first.
-    if not shared then shared = true; SWSH.reader.reshare() end
-
-    for _, res in ipairs(reader:collect()) do
-        hook.Run("SwSh.Result", res)
-        S.lines = { res.lines[1].text, res.lines[2].text }
-        S.name = res.lines[3] and res.lines[3].text or ""
-        local shown = S.lines[1] ~= "" or S.lines[2] ~= ""
-        S.kind = shown and res.kind
-                 or ((res.kind == "box" or res.kind == "sys") and res.kind or nil)
-        local text = S.name .. "\n" .. S.lines[1] .. "\n" .. S.lines[2]
-        if text == S.pending then
-            S.stable = S.stable + 1
-        else
-            S.pending, S.stable = text, 1
-        end
-        if S.stable == STABLE and text ~= S.logged and (S.lines[1] ~= "" or S.lines[2] ~= "") then
-            S.logged = text
-            if SWSH.mod:get("log_text") then
-                local line = S.lines[1]
-                             .. (S.lines[2] ~= "" and (" / " .. S.lines[2]) or "")
-                local args = SWSH.marked(line, SWSH.C.text)
-                if res.kind == "sub" then
-                    table.insert(args, 1, "[cutscene] ")
-                    table.insert(args, 1, SWSH.C.cutscene)
-                elseif res.kind == "sys" then
-                    table.insert(args, 1, "[system] ")
-                    table.insert(args, 1, SWSH.C.system)
-                end
-                if S.name ~= "" then
-                    local named = SWSH.marked(S.name, SWSH.C.name)
-                    named[#named + 1] = SWSH.C.name
-                    named[#named + 1] = ": "
-                    for _, v in ipairs(args) do named[#named + 1] = v end
-                    args = named
-                end
-                local suffix = SWSH.logSuffix and SWSH.logSuffix(res) or ""
-                if suffix ~= "" then
-                    args[#args + 1] = SWSH.C.stat
-                    args[#args + 1] = suffix
-                end
-                SWSH.log(SWSH.LV.dialogue, table.unpack(args))
-            end
-        end
-        -- Nothing on screen any more (box closed, subtitle gone): the next
-        -- time the same words appear, print them again.
-        if not shown and res.kind == "sub" then S.pending, S.stable, S.logged = nil, 0, nil end
-    end
-    hook.Run("SwSh.Think")
+    if not ocr then return end
+    local res = ocr.poll()
+    if res then apply(res) end
 end
 
---------------------------------------------------------------------- debug --
+------------------------------------------------------------------- debug --
 overlay.add("swsh.debug", {
     mode = "pinned", lockMode = true, passThrough = true,
     paint = function(d)
@@ -236,22 +196,18 @@ overlay.add("swsh.debug", {
         local px, py, pw, ph = camera.pictureRect()
         if pw <= 0 then return end
         local sx, sy = pw / SWSH.REF_W, ph / SWSH.REF_H
-        local B = SWSH.BOX
-        local r, g = S.open and 60 or 230, S.open and 230 or 60
-        for _, band in ipairs(B.lines) do
-            d:outline(px + B.x0 * sx, py + band[1] * sy, (B.x1 - B.x0) * sx,
-                      (band[2] - band[1]) * sy, r, g, 60)
+        local function box(x0, x1, band, r, g, b)
+            d:outline(px + x0 * sx, py + band[1] * sy, (x1 - x0) * sx,
+                      (band[2] - band[1]) * sy, r, g, b)
         end
-        if S.kind == "sub" then
-            for _, band in ipairs(SWSH.SUB.lines) do
-                d:outline(px + SWSH.SUB.x0 * sx, py + band[1] * sy,
-                          (SWSH.SUB.x1 - SWSH.SUB.x0) * sx,
-                          (band[2] - band[1]) * sy, 170, 150, 220)
-            end
+        if S.kind == "box" then
+            for _, band in ipairs(SWSH.BOX.lines) do box(SWSH.BOX.x0, SWSH.BOX.x1, band, 60, 230, 60) end
+            if S.name ~= "" then box(SWSH.NAME.x0, SWSH.NAME.x1, SWSH.NAME.band, 255, 200, 120) end
+        elseif S.kind == "sys" then
+            for _, band in ipairs(SWSH.SYS.lines) do box(SWSH.SYS.x0, SWSH.SYS.x1, band, 140, 190, 230) end
+        elseif S.kind == "sub" then
+            for _, band in ipairs(SWSH.SUB.lines) do box(SWSH.SUB.x0, SWSH.SUB.x1, band, 170, 150, 220) end
         end
-        local N = SWSH.NAME
-        d:outline(px + N.x0 * sx, py + N.band[1] * sy, (N.x1 - N.x0) * sx,
-                  (N.band[2] - N.band[1]) * sy, 230, 200, 60)
         d:rect(px + 8, py + 8, 900, 52, 0, 0, 0, 170)
         d:text(px + 16, py + 12, ((S.name ~= "" and (S.name .. ": ")) or "")
                .. (S.lines[1] or ""), 18, 255, 255, 255)

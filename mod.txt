@@ -1,2 +1,4 @@
 # What this mod is, for the engine. Read back as MOD_VERSION.
-version = 0.1.0
+version = 0.2.0
+# The OCR native module (bin/ocr.dll): DasMaffin/RapidOcrOnnx, branch mccp.
+dependencies = ocr >= 1.0.0

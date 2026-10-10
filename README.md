@@ -1,89 +1,67 @@
 # Sw-Sh-Help-Overlay
 
-An MCCP addon for Pokémon Sword & Shield. Clone this repo straight into the
-app's `addons/` folder; the repo root is the addon folder:
+An MCCP addon for Pokémon Sword & Shield that reads the game's text and prints
+it to the console. Clone this repo straight into MCCP's `addons/` folder; the
+repo root is the addon folder.
+
+It needs the native mod **`ocr`** (`bin/ocr.dll`): the OCR module built from
+[DasMaffin/RapidOcrOnnx, branch `mccp`](https://github.com/DasMaffin/RapidOcrOnnx/tree/mccp).
+Without it the addon logs that the module is missing and does nothing.
 
 ```
 addons/Sw-Sh-Help-Overlay/
-  mod.txt
-  lua/autorun/05_atlas.lua   glyph fingerprints (generated, see dev/)
-  lua/autorun/10_mod.lua     registration, settings, box geometry
-  lua/autorun/30_reader.lua  sampling (OnFrame), logging (Think), debug overlay
-  workers/reader.lua         the OCR, on its own thread
-  lua/autorun/90_dev_teach.lua  DEV ONLY: glyph teaching + teach panel (delete for shipping)
-  dev/                       DEV ONLY: tools, samples, teaching workers
+  mod.txt                    version; depends on ocr
+  lua/autorun/10_mod.lua     registration, settings, logging, where the text is
+  lua/autorun/30_reader.lua  which box is up -> ocr.read -> ocr.poll -> console
+  dev/                       sample screenshots and a simulator (not used by MCCP)
 ```
 
-## What it does (so far)
+## How it reads
 
-When the white dialogue box is on screen it reads the two lines of text, and
-the speaker's name from the dark plate above it when there is one. It also reads
-the dark system message box, and, with no box at all, cutscene subtitles
-(white text straight over the scene). Once
-the typewriter animation has stopped, it prints them to the console, once per
-box (the same text prints again only after the box has closed):
+Asynchronously, so the video never waits for OCR:
 
-```
-[mod] Sw-Sh-Help-Overlay: How about it, Lucy? Let’s race! / Bet I can make it to my house first, what with you
-```
+1. **OnFrame** (every 6th frame) checks a few pixels to see what's on screen —
+   the white dialogue box (and the speaker's name plate above it), the dark
+   system message box, or neither (then it tries the cutscene subtitle lines)
+   — and passes that box's lines to `ocr.read(frame, regions)`. The module
+   copies them and returns at once; if it is still busy, the frame is skipped.
+2. **Think** collects finished results with `ocr.poll()`. A box is printed once
+   its text is the same twice running (the typewriter animation is done), and
+   again only after it has changed or gone away.
 
-Characters it doesn't know yet print as `[?]` (a real `?` is the game's own
-question mark).
+Each region is one line of text, read in the module's `line` mode
+(recognition only): faster and more accurate than letting it find the text.
 
-## Log messages
+## Console output
 
-On an MCCP build with log levels and colours (engine `development`, Oct 2026)
-the mod logs under its own levels, so Options → Developer can show just them:
-
-- **Dialogue**: finished boxes. Text in white, unreadable glyphs `[?]` in red,
-  the glyph count in blue.
-- **Teaching** (DEV only): learned letters in green with the letter in yellow;
-  "could not learn" in orange.
-- **Important**: problems (unsupported frame format, no teaching data).
-
-Older builds get the same lines without colour or levels.
-
-| Message | Meaning |
+| Line | When |
 |---|---|
-| `<line 1> / <line 2>` | A finished box. |
-| `Hop: <line 1> / <line 2>` | A finished box with a speaker's name plate (name in orange). |
-| `[system] <line 1> / <line 2>` | The dark system message box ("Scorbunny has been added to your party."). |
-| `[cutscene] <line 1> / <line 2>` | A cutscene subtitle (white text over the scene, no box). |
-| `... [glyphs 42/109 en]` | Appended to the first finished box after letters were learned: characters the reader knows / distinct characters in that language's game text. Touching pairs (`w.`) don't count. |
-| `DEV learned new letter 'M' from "Meeeh?" (read as "[?]eeeh?")` | Self-teaching found the letter. A pair like `'w.'` means two characters whose ink touches. `; "Lucy" taken as a name` means that word matched a name placeholder in the game text. |
-| `DEV learned new letter 'v' (subtitle) from "..." ...` | Learned from a cutscene subtitle. |
-| `DEV learned new letter 'H' (name plate) from "Hop" ...` | Learned from the name plate. Same atlas as everything else; the plate's heavier letters are just extra variants. |
-| `DEV learned new letter 'l' (typed in; was read as "I")` | Learned from the manual teach panel (`line 1\|line 2\|name`). |
-| `DEV could not learn from "...": <reason>` | `not in the game text`, `ambiguous` (several answers fit), `too many unknowns` (more than 3), `too little known text`. It waits for another box. |
-| `DEV Learned N glyphs.` / `DEV learned glyphs cleared` | Teach panel results. |
-| `DEV dropped N learned glyphs measured by an older reader ...` | After an update that changed how glyphs are measured: your old learned letters no longer compare, so they're removed once and relearned. |
-| `DEV self-teaching is off -- no dev/teach/teach_<lang>.lua` | No game text for the chosen language. |
-| `frame format ... is not supported yet (NV12 only)` | Capture isn't NV12; nothing is read. |
+| `Hop: <line 1> / <line 2>` | The dialogue box, with the name plate when there is one. |
+| `<line 1> / <line 2>` | The dialogue box without a name plate. |
+| `[system] <line 1> / <line 2>` | The dark system message box. |
+| `[cutscene] <line 1> / <line 2>` | A cutscene subtitle (white text over the scene). |
+| `the OCR module isn't available ...` | `bin/ocr.dll` is missing or failed to load. |
+| `OCR failed: ...` | The module reported an error for a job. |
+| `frame format ... is not supported` | The capture isn't NV12. |
 
-## Self-teaching (DEV ONLY)
+On MCCP builds with log levels the lines are logged under the level
+**Dialogue**, so Options → Developer can show just them.
 
-While the dev layer is in (`lua/autorun/90_dev_teach.lua` + `dev/`, removed
-for shipping), unknown letters are learned by themselves: a line with `[?]`
-is looked up in the game's own text (CPokemon/swsh-text), and if only one
-answer fits, the letters are learned, logged and used from then on. Settings
-*DEV: learn unknown letters from the game's text* and *DEV: game language*
-(restart to apply). You can also teach by hand in the overlay (Shift+Tab).
+The English model only knows ASCII, so `'` is printed as `’` and `--` as `—`
+(the game uses those); `é` comes out as `e`.
 
-Learned letters land in
-`ModdableCaptureCardProvider\data\Sw-Sh-Help-Overlay\learned.txt`. To get
-them baked into the shipped atlas for everyone, copy that file to
-`dev/learned/<name>.txt` and push (or send it in); after the baked update,
-press *Forget learned* and delete your `dev/learned` copy.
-
-Settings: *Print dialogue text to the console* and *Show what the reader sees*
-(outlines the sampled lines and shows the live reading).
+Settings: *Print what is read to the console*, and *Show what the reader sees*
+(outlines the lines being read and shows the latest reading).
 
 ## Dev
 
 ```
-pip install lupa pillow numpy
-python3 dev/gen_atlas.py --check   # rebuild the atlas from dev/samples, re-read them
-python3 dev/sim.py dev/samples/hop_1.webp   # run the whole addon on a screenshot
+pip install lupa pillow numpy rapidocr_onnxruntime
+python3 dev/sim.py                       # every screenshot in dev/samples
+python3 dev/sim.py dev/samples/hop_1.webp
 ```
 
-Box geometry is measured at 1920x1080 and scaled to the capture's size.
+`dev/sim.py` runs the addon under a mocked engine, with a stand-in for the
+`ocr` module (same API, Python RapidOCR underneath — its readings are close to
+the DLL's, not identical). Box positions are measured at 1920x1080 and scaled
+to the capture's size.

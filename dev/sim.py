@@ -1,113 +1,148 @@
 #!/usr/bin/env python3
-"""Run the addon against a screenshot with a mocked engine.
+"""DEV ONLY. Run the addon against screenshots with a mocked engine.
 
-    python3 dev/sim.py dev/samples/hop_1.webp [frames]
+    pip install lupa pillow numpy rapidocr_onnxruntime
+    python3 dev/sim.py dev/samples/hop_1.webp [more screenshots...]
 
-Loads lua/autorun/*.lua in order, feeds the picture to OnFrame as an NV12
-frame, runs the worker synchronously and prints what the mod logs.
+Loads lua/autorun/*.lua in order and feeds each picture to OnFrame for a
+while as a real NV12 frame. require("ocr") is a stand-in for the native module
+(bin/ocr.dll, DasMaffin/RapidOcrOnnx branch mccp) with the same API: read()
+queues a job and returns at once, poll() hands back a finished one a few
+frames later. It runs RapidOCR's Python package (its bundled Chinese+English
+PP-OCR model) with the module's line-mode preprocessing, so readings are
+close to, not identical with, the DLL's English model.
 """
 import os, sys, glob
-from lupa import lua54
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
-from gen_atlas import nv12, ROOT
+from PIL import Image
+from lupa import lua54
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MOCK = r'''
-local logs = {}
-function log(m) print(m) end
-data = { files = {} }
-function data.read(n) return data.files[n] end
-function data.write(n, s) data.files[n] = s return true end
-function data.append(n, s) data.files[n] = (data.files[n] or "") .. s return true end
-function data.delete(n) data.files[n] = nil return true end
+function log(...)
+    local out = {}
+    for _, v in ipairs({ ... }) do
+        if type(v) ~= "table" then out[#out + 1] = tostring(v) end
+    end
+    print("[mod] " .. table.concat(out))
+end
+data = {}
 local mod = { settings = {} }
 function mod:addSetting(k, l, kind, o, def) if def == nil then def = (kind == "bool") end self.settings[k] = def return self end
 function mod:get(k) return self.settings[k] end
 game = { register = function() return mod end, isActive = function() return true end }
-overlay = { els = {} }
-function overlay.add(id, spec) spec.id = id overlay.els[id] = spec return spec end
-hook = { h = {} }
-function hook.Add(ev, name, fn) hook.h[ev] = hook.h[ev] or {} hook.h[ev][name] = fn end
-function hook.Run(ev, ...) for _, fn in pairs(hook.h[ev] or {}) do fn(...) end end
+overlay = { add = function(id, spec) spec.id = id return spec end }
+hook = { Add = function() end }
 camera = { pictureRect = function() return 0, 0, 0, 0 end }
-MOD_NAME = "swsh_text"
+MOD_NAME = "Sw-Sh-Help-Overlay"
 '''
 
-# SIM_RICH=1: the newer engine log() -- levels and colour tables (ANSI here).
-RICH = r'''
-local names = { [1] = "Verbose", [2] = "Important" }
-LOG_LEVEL = { VERBOSE = 1, IMPORTANT = 2, next = 16 }
-function LOG_LEVEL.add(n) local v = LOG_LEVEL.next LOG_LEVEL.next = v + 1 names[v] = n return v end
-function log(...)
-    local a, lv, out = { ... }, 1, {}
-    local i = 1
-    if math.type(a[1]) == "integer" and names[a[1]] and #a > 1 then lv = a[1]; i = 2 end
-    for k = i, #a do
-        local v = a[k]
-        if type(v) == "table" then
-            out[#out + 1] = string.format("\27[38;2;%d;%d;%dm", v[1] or v.r, v[2] or v.g, v[3] or v.b)
-        else out[#out + 1] = tostring(v) end
-    end
-    print("[mod] <" .. names[lv] .. "> " .. table.concat(out) .. "\27[0m")
-end
-'''
+
+def nv12(path):
+    """(Y, UV) as an HD capture's NV12 frame holds them (limited-range BT.709)."""
+    im = np.asarray(Image.open(path).convert("RGB")).astype(float)
+    R, G, B = im[..., 0], im[..., 1], im[..., 2]
+    y = 16 + 0.1826 * R + 0.6142 * G + 0.0620 * B
+    u = 128 - 0.1006 * R - 0.3386 * G + 0.4392 * B
+    v = 128 + 0.4392 * R - 0.3989 * G - 0.0403 * B
+    h, w = y.shape
+    h2, w2 = h // 2 * 2, w // 2 * 2
+    sub = lambda c: c[:h2, :w2].reshape(h2 // 2, 2, w2 // 2, 2).mean(axis=(1, 3))
+    uv = np.zeros((h2 // 2, w), float)
+    uv[:, 0:w2:2], uv[:, 1:w2:2] = sub(u), sub(v)
+    c = lambda a: np.clip(a, 0, 255).astype(np.uint8)
+    return c(y), c(uv)
+
+
+class FakeOcr:
+    """The ocr module's API, run synchronously but delivered a few polls late."""
+    DELAY = 3          # polls before a job is "finished"
+
+    def __init__(self, L):
+        from rapidocr_onnxruntime import RapidOCR
+        self.engine = RapidOCR()
+        self.L, self.frame, self.job, self.done, self.next = L, None, None, None, 1
+
+    def read_line(self, grey):
+        # Line mode: pad with the median, recognition only. (The module also
+        # trims the crop to the columns with text, which helps its English
+        # model; this package's model reads worse trimmed, so the stand-in
+        # doesn't. Readings here are for testing the Lua side, not the OCR.)
+        med = int(np.median(grey))
+        p = np.pad(grey, ((8, 8), (16, 16)), constant_values=med)
+        r, _ = self.engine(np.stack([p] * 3, -1), use_det=False, use_cls=False, use_rec=True)
+        if not r:
+            return "", 0.0
+        return r[0][1].strip(), float(r[0][2])
+
+    def read(self, frame, regions, opts=None):
+        if self.job is not None:
+            return None, "busy"
+        Y = self.frame
+        out = []
+        for reg in regions.values():
+            x, y, w, h = int(reg["x"]), int(reg["y"]), int(reg["w"]), int(reg["h"])
+            text, score = self.read_line(Y[y:y + h, x:x + w])
+            lines = [{"text": text, "score": score, "x0": x, "y0": y, "x1": x + w, "y1": y + h}] if text else []
+            out.append({"key": reg["key"], "lines": lines})
+        jid = self.next
+        self.next += 1
+        self.job = (jid, out, self.DELAY)
+        return jid
+
+    def poll(self):
+        if self.job is None:
+            return None
+        jid, out, wait = self.job
+        if wait > 0:
+            self.job = (jid, out, wait - 1)
+            return None
+        self.job = None
+        t = self.L.table_from
+        regions = [t({"key": r["key"], "lines": self.L.table(*[t(l) for l in r["lines"]])}) for r in out]
+        return t({"id": jid, "ms": 30, "regions": self.L.table(*regions)})
+
 
 def main():
-    path = sys.argv[1]
-    frames = int(sys.argv[2]) if len(sys.argv) > 2 else 16
-    # A real NV12 buffer: the luma rows, then the half-height U,V rows, all
-    # at the luma's pitch -- frame:region reads on from one into the other.
-    Y, UV = nv12(path)
-    h, w = Y.shape
-    uvp = np.zeros((UV.shape[0], w), np.uint8)
-    uvp[:, :UV.shape[1]] = UV
-    blob = Y.tobytes() + uvp.tobytes()
-
-    def tolua(rt, v):
-        if lua54.lua_type(v) == "table":
-            return rt.table_from({k: tolua(rt, x) for k, x in v.items()})
-        return v
-
-    def spawn(path):
-        p = os.path.join(ROOT, path.decode())
-        if not os.path.exists(p):
-            print("worker missing:", path.decode()); return None
-        wk = lua54.LuaRuntime(encoding=None)
-        wk.execute(open(p, "rb").read())
-        pending = []
-        def post(self, job):
-            pending.append(tolua(L, wk.globals().onJob(tolua(wk, job)))); return True
-        def collect(self):
-            out = L.table(*pending); pending.clear(); return out
-        def share(self, n, v): wk.globals()[n] = tolua(wk, v)
-        return L.table_from({b"share": share, b"post": post, b"collect": collect})
-
-    L = lua54.LuaRuntime(encoding=None)
+    paths = sys.argv[1:] or sorted(p for p in glob.glob(os.path.join(ROOT, "dev", "samples", "*.*"))
+                                   if not p.endswith(".txt"))
+    L = lua54.LuaRuntime(encoding="utf-8")
     L.execute(MOCK)
-    if os.environ.get("SIM_RICH"):
-        L.execute(RICH)
-    L.globals().worker = L.table_from({b"spawn": spawn})
-
-    class Frame:
-        pass
-    def region(self, x, y, rw, rh):
-        x, y, rw, rh = int(x), int(y), int(rw), int(rh)
-        return b"".join(blob[(y + r) * w + x:(y + r) * w + x + rw] for r in range(rh))
-    frame = L.table_from({
-        b"width": lambda s: w, b"height": lambda s: h,
-        b"format": lambda s: b"SDL_PIXELFORMAT_NV12", b"region": region})
-
+    fake = FakeOcr(L)
+    L.globals().require = lambda name: L.table_from({
+        "read": lambda frame, regions, opts=None: fake.read(frame, regions, opts),
+        "poll": lambda: fake.poll(),
+        "languages": lambda: L.table("en"),
+        "version": lambda: "fake ocr (dev/sim.py)"})
     for f in sorted(glob.glob(os.path.join(ROOT, "lua", "autorun", "*.lua"))):
-        L.execute(open(f, "rb").read())
-    drop = os.environ.get("SIM_DROP", "")    # pretend these aren't in the atlas
-    if drop:
-        L.execute(('local d = "%s" local a = {} for _, g in ipairs(SWSH.atlas) do '
-                   'if not d:find(g.ch, 1, true) then a[#a+1] = g end end SWSH.atlas = a'
-                   % drop).encode())
-    mod = L.globals().SWSH[b"mod"]
-    for _ in range(frames):
-        mod[b"Think"](mod)
-        mod[b"OnFrame"](mod, frame)
+        L.execute(open(f, encoding="utf-8").read())
+    mod = L.globals().SWSH["mod"]
+
+    for path in paths:
+        print("==", os.path.basename(path))
+        Y, UV = nv12(path)
+        h, w = Y.shape
+        blob = Y.tobytes() + UV.tobytes()
+        fake.frame = Y
+
+        def region(self, x, y, rw, rh):
+            x, y, rw, rh = int(x), int(y), int(rw), int(rh)
+            return b"".join(blob[(y + r) * w + x:(y + r) * w + x + rw] for r in range(rh))
+        frame = L.table_from({"width": lambda s: w, "height": lambda s: h,
+                              "format": lambda s: "SDL_PIXELFORMAT_NV12", "region": region})
+        L.globals().string_dummy = None
+        for _ in range(60):
+            mod.Think(mod)
+            mod.OnFrame(mod, frame)
+        # The picture goes away (a blank frame), so the next one prints afresh.
+        blank = Y * 0 + 40
+        fake.frame = blank
+        blob = blank.tobytes() + UV.tobytes()
+        for _ in range(30):
+            mod.Think(mod)
+            mod.OnFrame(mod, frame)
+
 
 if __name__ == "__main__":
     main()
