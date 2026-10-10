@@ -11,9 +11,14 @@
   `frame:region`, recognise on a worker, decide in Think. Geometry is measured
   at 1920x1080 (`SWSH.BOX` in `lua/autorun/10_mod.lua`, mirrored in
   `dev/gen_atlas.py`).
-- Text styles: atlas entries carry `s` = "d" (dialogue box, dark on white)
-  or "n" (speaker name plate, `SWSH.NAME`, white on dark, matched as a whole
-  game-text entry when teaching). Only same-style glyphs compete.
+- ONE atlas for all text (user's instruction): no per-colour/per-style
+  sets. Ink is measured against the LOCAL paper (per column: brightest value
+  for dark text, darkest for light text), so a glyph's fingerprint is the
+  same on white, on the box's grey stripe, or white-on-dark on the name plate
+  (`SWSH.NAME`). The plate's heavier cut is just more variants of a letter.
+  A match past UNKNOWN still counts if within 2x and the next other letter
+  is 2x further (CLEAR). Lines carry `style` ("d"/"n") only as a label for
+  logs/teaching; the plate is taught as a whole game-text entry (`whole`).
 - Fingerprints are measured from the line's BASELINE (median glyph bottom),
   not the band edge, so 1-3 px offsets don't matter; the atlas keeps up to 8
   DISTINCT variants per char (near-duplicates < 1.0 skipped) because a

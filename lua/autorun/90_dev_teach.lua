@@ -30,7 +30,8 @@ SWSH.mod:addSetting("dev_lang", "DEV: game language (restart to apply)",
 ------------------------------------------------------------ learned.txt --
 -- One glyph per line: char <TAB> w <TAB> t <TAB> b <TAB> f1,f2,... [<TAB> style]
 -- (no load() in the sandbox, so a format simple enough to parse by hand).
--- Style is "d" (dialogue; the default, and all older files) or "n" (name).
+-- The last column says where the glyph was seen ("d" dialogue box, "n" name
+-- plate) -- for reference only: there is ONE atlas, whatever the colours.
 local learned, perChar = {}, {}
 
 local function parse(s)
@@ -43,7 +44,7 @@ local function parse(s)
             for v in fs:gmatch("[^,]+") do f[#f + 1] = tonumber(v) end
             learned[#learned + 1] = { ch = ch, s = st, w = tonumber(w), t = tonumber(t),
                                       b = tonumber(b), f = f }
-            perChar[st .. ch] = (perChar[st .. ch] or 0) + 1
+            perChar[ch] = (perChar[ch] or 0) + 1
         end
     end
 end
@@ -51,15 +52,15 @@ parse(data.read(LEARNED) or "")
 
 function SWSH.extraGlyphs() return learned end
 
--- Save one glyph of a style. Returns false when that character already has
--- enough samples in that style.
+-- Save one glyph (st: where it was seen, for the record). Returns false when
+-- that character already has enough variants, or one just like it.
 local function keep(ch, g, st)
     st = st or "d"
-    if (perChar[st .. ch] or 0) >= PER_CHAR then return false end
+    if (perChar[ch] or 0) >= PER_CHAR then return false end
     -- A near-copy of a variant we already have teaches nothing (same
     -- distance as the reader's match, workers/reader.lua).
     for _, a in ipairs(SWSH.fullAtlas()) do
-        if a.ch == ch and (a.s or "d") == st then
+        if a.ch == ch then
             local d = 30 * (math.abs(a.w - g.w) + math.abs(a.t - g.t) + math.abs(a.b - g.b))
             for k = 1, #g.f do d = d + math.abs(a.f[k] - g.f[k]) end
             if d < SAME then return false end
@@ -70,7 +71,7 @@ local function keep(ch, g, st)
     data.append(LEARNED, string.format("%s\t%.4f\t%.4f\t%.4f\t%s\t%s\n",
         ch, g.w, g.t, g.b, table.concat(f, ","), st))
     learned[#learned + 1] = { ch = ch, s = st, w = g.w, t = g.t, b = g.b, f = g.f }
-    perChar[st .. ch] = (perChar[st .. ch] or 0) + 1
+    perChar[ch] = (perChar[ch] or 0) + 1
     return true
 end
 
@@ -105,10 +106,7 @@ if teacher then teacher:post({ charset = true }) end
 local function knownStat()
     if not charset then return "" end
     local have = {}
-    -- The dialogue's letters: the count is about the language's text.
-    for _, g in ipairs(SWSH.fullAtlas()) do
-        if (g.s or "d") == "d" then have[g.ch] = true end
-    end
+    for _, g in ipairs(SWSH.fullAtlas()) do have[g.ch] = true end
     local n, total = 0, 0
     for _, cp in utf8.codes(charset) do
         total = total + 1

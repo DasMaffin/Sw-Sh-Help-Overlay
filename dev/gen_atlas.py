@@ -44,10 +44,10 @@ def add(entries, count, e):
     almost exactly like it. The same letter renders a pixel differently
     depending on where it falls on the grid, and keeping the FIRST few
     samples once kept five of one variant and none of the other."""
-    key = (e[0], e[5])
+    key = e[0]          # one atlas: the plate's bold cut is just more variants
     if count.get(key, 0) >= PER_CHAR:
         return
-    if any(x[0] == e[0] and x[5] == e[5] and dist(x, e) < SAME for x in entries):
+    if any(x[0] == e[0] and dist(x, e) < SAME for x in entries):
         return
     count[key] = count.get(key, 0) + 1
     entries.append(e)
@@ -136,13 +136,11 @@ def build():
         f.write("SWSH = SWSH or {}\nSWSH.atlas = {\n")
         for c, w, t, b, fv, st in entries:
             q = c.replace("\\", "\\\\").replace('"', '\\"')
-            f.write('    { ch = "%s", s = "%s", w = %.4f, t = %.4f, b = %.4f, f = { %s } },\n'
-                    % (q, st, w, t, b, ", ".join("%.3g" % v for v in fv)))
+            f.write('    { ch = "%s", w = %.4f, t = %.4f, b = %.4f, f = { %s } },  -- %s\n'
+                    % (q, w, t, b, ", ".join("%.3g" % v for v in fv),
+                       "name plate" if st == "n" else "dialogue"))
         f.write("}\n")
-    for st, label in (("d", "dialogue"), ("n", "name")):
-        cs = sorted(c for c, s2 in count if s2 == st)
-        print(f"{label}: {len(cs)} characters: " + "".join(cs))
-    print(f"wrote {len(entries)} glyphs")
+    print(f"wrote {len(entries)} glyphs, {len(count)} characters: " + "".join(sorted(count)))
     return entries
 
 

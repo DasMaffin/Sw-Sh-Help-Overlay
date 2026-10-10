@@ -16,8 +16,8 @@
 --
 -- Shared once by the main thread:
 --   ATLAS  { { ch = "a", w = <width>, t = <ink top>, b = <ink bottom>,
---              f = { ...GR*GC numbers 0..1 }, s = <style> }, ... }
---   (s: "d" dialogue -- the default when absent -- or "n" the name plate)
+--              f = { ...GR*GC numbers 0..1 } }, ... }
+--   One atlas for all text, whatever its colour or background.
 --   (w, t, b are fractions of the line's height, so they hold at any
 --   capture resolution)
 --   (learned glyphs are appended and re-shared)
@@ -28,7 +28,9 @@ local MIN_RANGE = 60             -- less contrast than this: nothing to read
 local ABOVE  = 0.69               -- baseline window: this * lineH above it
 local SPACE  = 0.17              -- a gap wider than this * lineH is a space
 local SHAPE_W = 30               -- weight of width/top/bottom differences
-local UNKNOWN = 3.0              -- a best distance above this is unknown
+local UNKNOWN = 3.0              -- a best distance above this is unknown...
+local CLEAR   = 2.0              -- ...unless it is within 2x UNKNOWN AND the
+                                 -- next other letter is CLEAR times further
 -- What an unknown glyph prints as. Not a bare "?": the game prints plenty of
 -- real question marks, and the two must not be confused in a log. `raw`
 -- carries "\1" instead, one byte per unknown glyph, for code to work with.
@@ -49,15 +51,35 @@ local function segment(rows, w, light)
     end
     if hi - lo < MIN_RANGE then return {}, lo, hi end
 
-    -- Ink per pixel, 0 (paper) .. 1 (ink). Dark text on the white box;
-    -- with `light`, white text on a dark plate (the speaker's name).
-    local span = hi - lo
+    -- Ink per pixel, 0 (paper) .. 1 (ink), measured against the paper RIGHT
+    -- THERE, not the line's overall brightest pixel. The box's right end
+    -- has a grey diagonal stripe behind the text, and against the line's
+    -- white that grey read as faint ink all over a glyph's fingerprint --
+    -- "woods." on the stripe stopped matching the same letters on white.
+    -- Every column of a line has paper in it (no glyph fills a column top
+    -- to bottom), so the column's brightest value is the paper behind it;
+    -- the text's own colour is the line's darkest. With `light` (white text
+    -- on a dark plate) the same, mirrored. So a glyph's fingerprint is the
+    -- same whatever it is drawn on.
+    local paper = {}
+    for x = 1, w do
+        local p = light and 255 or 0
+        for y = 1, h do
+            local v = rows[y]:byte(x)
+            if light then
+                if v < p then p = v end
+            elseif v > p then p = v end
+        end
+        paper[x] = p
+    end
+    local inkLevel = light and hi or lo
     local ink = {}
     for y = 1, h do
         local r, row = rows[y], {}
         for x = 1, w do
-            local v = r:byte(x)
-            local t = (light and (v - lo) or (hi - v)) / span
+            local span = paper[x] - inkLevel
+            local t = 0
+            if span ~= 0 then t = (paper[x] - r:byte(x)) / span end
             row[x] = t < 0 and 0 or (t > 1 and 1 or t)
         end
         ink[y] = row
@@ -185,39 +207,50 @@ local function segment(rows, w, light)
     return glyphs, lo, hi
 end
 
--- Only glyphs of the line's own style compete: the name plate's text is a
--- heavier, slightly smaller cut than the dialogue's, and its fingerprints
--- would only blur the dialogue's matches (and the other way round).
-local function match(g, atlas, style)
-    local best, bestD = nil, math.huge
+-- ONE atlas for every place text appears: dark on the white box, white on
+-- the name plate, whatever is behind it -- ink is measured against the local
+-- paper, so colour is gone by the time we get here. The plate's heavier cut
+-- is just more variants of the same letters.
+--
+-- Returns the best character and its distance, plus the distance of the
+-- best OTHER character: a match a little past UNKNOWN still counts when
+-- nothing else comes close (see readLine).
+local function match(g, atlas)
+    local best, bestD, secondD = nil, math.huge, math.huge
     for i = 1, #atlas do
         local a = atlas[i]
-        if (a.s or "d") ~= style then goto skip end
+        -- Only distances under the second-best can change either answer,
+        -- so a candidate is dropped as soon as it passes that.
         local d = SHAPE_W * (math.abs(a.w - g.wn) + math.abs(a.t - g.tn)
                              + math.abs(a.b - g.bn))
-        if d < bestD then
+        if d < secondD then
             local af, gf = a.f, g.f
             for k = 1, #gf do
                 d = d + math.abs(af[k] - gf[k])
-                if d >= bestD then break end
+                if d >= secondD then break end
             end
-            if d < bestD then best, bestD = a.ch, d end
+            if d < bestD then
+                if a.ch ~= best then secondD = bestD end
+                best, bestD = a.ch, d
+            elseif d < secondD and a.ch ~= best then
+                secondD = d
+            end
         end
-        ::skip::
     end
-    return best, bestD
+    return best, bestD, secondD
 end
 
-local function readLine(rows, w, atlas, light, style)
+local function readLine(rows, w, atlas, light)
     local glyphs = segment(rows, w, light)
     local out, raw, worst, missing = {}, {}, 0, 0
     for i, g in ipairs(glyphs) do
         if i > 1 and g.gap > SPACE then
             out[#out + 1] = " "; raw[#raw + 1] = " "
         end
-        local ch, d = match(g, atlas, style)
+        local ch, d, other = match(g, atlas)
         if d > worst then worst = d end
-        if not ch or d > UNKNOWN then
+        local sure = d <= UNKNOWN or (d <= 2 * UNKNOWN and other >= CLEAR * d)
+        if not ch or not sure then
             missing = missing + 1
             out[#out + 1] = MISSING; raw[#raw + 1] = "\1"
         else
@@ -230,6 +263,8 @@ end
 -- job = { seq, learn = bool,
 --         lines = { { rows = {...}, w = <bytes per row>, light = bool,
 --                     style = "d" | "n", whole = bool }, ... } }
+-- (style only labels the line -- "n" is the name plate -- for logs and
+-- teaching; it doesn't change how glyphs are matched)
 -- Each line comes back as { text, raw, worst, missing, style, whole,
 -- glyphs? }; style and whole are echoed for whoever learns from it.
 function onJob(job)
@@ -238,7 +273,7 @@ function onJob(job)
     for i, line in ipairs(job.lines) do
         local style = line.style or "d"
         local text, glyphs, worst, missing, raw =
-            readLine(line.rows, line.w, atlas, line.light, style)
+            readLine(line.rows, line.w, atlas, line.light)
         local L = { text = text, raw = raw, worst = worst, missing = missing,
                     style = style, whole = line.whole }
         -- Fingerprints come back when asked for, or when something was
