@@ -2,7 +2,12 @@
 """DEV ONLY. Run the addon against screenshots with a mocked engine.
 
     pip install lupa pillow numpy rapidocr_onnxruntime
-    python3 dev/sim.py dev/samples/hop_1.webp [more screenshots...]
+    python3 dev/sim.py [--all] [--say "Go! Scorbunny!"] dev/samples/hop_1.webp [...]
+
+--all turns on the "read_all" setting (dialogue, system and cutscene text, not
+only battle text). --say feeds a battle line to SWSH.onBattleText first, as if
+it had been read. After each picture the stats overlay is painted and what it
+would draw is printed as [draw] lines.
 
 Loads lua/autorun/*.lua in order and feeds each picture to OnFrame for a
 while as a real NV12 frame. require("ocr") is a stand-in for the native module
@@ -32,9 +37,18 @@ local mod = { settings = {} }
 function mod:addSetting(k, l, kind, o, def) if def == nil then def = (kind == "bool") end self.settings[k] = def return self end
 function mod:get(k) return self.settings[k] end
 game = { register = function() return mod end, isActive = function() return true end }
-overlay = { add = function(id, spec) spec.id = id return spec end }
+overlay = { elements = {} }
+function overlay.add(id, spec) spec.id = id overlay.elements[id] = spec return spec end
 hook = { Add = function() end }
-camera = { pictureRect = function() return 0, 0, 0, 0 end }
+camera = { pictureRect = function() return 0, 0, 1920, 1080 end }
+-- Paints an overlay element, printing its text calls.
+function sim_paint(id)
+    local texts = {}
+    local d = { text = function(_, x, y, str) texts[#texts + 1] = str end }
+    for _, m in ipairs({ "rect", "outline", "line", "image" }) do d[m] = function() end end
+    overlay.elements[id].paint(d, overlay.elements[id])
+    if #texts > 0 then print("[draw] " .. table.concat(texts, " | ")) end
+end
 MOD_NAME = "Sw-Sh-Help-Overlay"
 '''
 
@@ -105,7 +119,12 @@ class FakeOcr:
 
 
 def main():
-    paths = sys.argv[1:] or sorted(p for p in glob.glob(os.path.join(ROOT, "dev", "samples", "*.*"))
+    args, say, read_all = sys.argv[1:], [], False
+    while args and args[0].startswith("--"):
+        a = args.pop(0)
+        if a == "--all": read_all = True
+        elif a == "--say": say.append(args.pop(0))
+    paths = args or sorted(p for p in glob.glob(os.path.join(ROOT, "dev", "samples", "*.*"))
                                    if not p.endswith(".txt"))
     L = lua54.LuaRuntime(encoding="utf-8")
     L.execute(MOCK)
@@ -118,6 +137,10 @@ def main():
     for f in sorted(glob.glob(os.path.join(ROOT, "lua", "autorun", "*.lua"))):
         L.execute(open(f, encoding="utf-8").read())
     mod = L.globals().SWSH["mod"]
+    mod.settings["read_all"] = read_all
+    for line in say:
+        print("== say:", line)
+        L.globals().SWSH.onBattleText(L.table(line))
 
     for path in paths:
         print("==", os.path.basename(path))
@@ -135,6 +158,7 @@ def main():
         for _ in range(60):
             mod.Think(mod)
             mod.OnFrame(mod, frame)
+        L.globals().sim_paint("swsh.stats")
         # The picture goes away (a blank frame), so the next one prints afresh.
         blank = Y * 0 + 40
         fake.frame = blank

@@ -49,6 +49,9 @@ end
 
 ----------------------------------------------------------------- settings --
 SWSH.mod:addSetting("log_text", "Print what is read to the console", "bool", nil, true)
+-- Off: only battle text is read. On: dialogue, system and cutscene text too.
+SWSH.mod:addSetting("read_all", "Read text outside battles too", "bool", nil, false)
+SWSH.mod:addSetting("show_stats", "Show your Pokemon's base stats in battle", "bool", nil, true)
 -- Outlines the lines being read and shows the latest reading over the picture.
 SWSH.mod:addSetting("debug", "Show what the reader sees", "bool", nil, false)
 

@@ -11,7 +11,8 @@
 --            once it has stopped changing (the typewriter animation is done).
 
 local S = {
-    kind  = nil,     -- what is on screen: "box", "sys", "sub" or nil
+    kind  = nil,     -- what is on screen: "box", "battle", "sys", "sub" or nil
+    menu  = false,   -- a battle menu is up (the player's HP panel shows)
     lines = {},      -- the latest reading, line by line
     name  = "",      -- the speaker, "" without a name plate
     pending = nil,   -- the latest reading { kind, name, lines, text, body }
@@ -84,6 +85,7 @@ end
 
 -------------------------------------------------------------------- read --
 local frameNo, warned = 0, false
+local see                -- see(reading or nil), under "collect"
 local jobKind = {}       -- job id -> what it read ("box", "sys", "sub")
 
 function SWSH.mod:OnFrame(frame)
@@ -99,8 +101,10 @@ function SWSH.mod:OnFrame(frame)
     end
 
     local sx, sy = frame:width() / SWSH.REF_W, frame:height() / SWSH.REF_H
+    local all = SWSH.mod:get("read_all")    -- off: battle text only
+    S.menu = menuOpen(frame, sx, sy)
     local kind, regions = nil, {}
-    if boxOpen(frame, sx, sy) then
+    if all and boxOpen(frame, sx, sy) then
         kind = "box"
         for i, band in ipairs(SWSH.BOX.lines) do
             regions[#regions + 1] = region(i, SWSH.BOX.x0, SWSH.BOX.x1, band, sx, sy)
@@ -114,15 +118,15 @@ function SWSH.mod:OnFrame(frame)
         for i, band in ipairs(SWSH.BATTLE.lines) do
             regions[#regions + 1] = region(i, SWSH.BATTLE.x0, SWSH.BATTLE.x1, band, sx, sy)
         end
-    elseif sysOpen(frame, sx, sy) then
+    elseif all and sysOpen(frame, sx, sy) then
         kind = "sys"
         for i, band in ipairs(SWSH.SYS.lines) do
             regions[#regions + 1] = region(i, SWSH.SYS.x0, SWSH.SYS.x1, band, sx, sy)
         end
-    elseif menuOpen(frame, sx, sy) then
-        -- A battle menu: nothing to read, and its white move names would
-        -- pass for a subtitle.
-        S.kind, S.lines, S.name, S.pending, S.logged = nil, {}, "", nil, nil
+    elseif S.menu or not all then
+        -- Nothing to read. (In a battle menu its white move names would pass
+        -- for a subtitle.)
+        see(nil)
         return
     else
         -- No box: maybe a cutscene subtitle. Only the OCR's confidence can
@@ -183,6 +187,7 @@ end
 local function emit(r)
     if S.logged and S.logged.text == r.text then return end
     S.logged = r
+    if r.kind == "battle" and SWSH.onBattleText then SWSH.onBattleText(r.lines) end
     if SWSH.mod:get("log_text") then
         SWSH.log(SWSH.LV.dialogue, table.unpack(format(r.kind, r.name, r.lines)))
     end
@@ -212,14 +217,20 @@ local function apply(res)
     -- but a single stray "I" or "." is not a subtitle.
     if kind == "sub" and not table.concat(out, " "):find("%a%a") then out = {} end
 
-    S.kind  = #out > 0 and kind or nil
-    S.lines, S.name = out, name
     local cur = nil
     if #out > 0 then
         local body = table.concat(out, "\n")
         cur = { kind = kind, name = name, lines = out, body = body,
                 text = (kind or "") .. "\n" .. name .. "\n" .. body }
     end
+    see(cur)
+end
+
+-- The latest reading (nil: nothing on screen) -> print it once it's settled.
+see = function(cur)
+    S.kind  = cur and cur.kind
+    S.lines = cur and cur.lines or {}
+    S.name  = cur and cur.name or ""
     local p = S.pending
 
     -- Print once the text is the same twice running: the typewriter is done.
