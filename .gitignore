@@ -1,2 +1,4 @@
 __pycache__/
 *.npy
+# Game files (local only, never committed)
+ROMs/
