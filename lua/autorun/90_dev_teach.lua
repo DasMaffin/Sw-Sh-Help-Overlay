@@ -34,18 +34,33 @@ SWSH.mod:addSetting("dev_lang", "DEV: game language (restart to apply)",
 -- plate) -- for reference only: there is ONE atlas, whatever the colours.
 local learned, perChar = {}, {}
 
+-- A 7th column is the fingerprint version (SWSH.FEATURES) that measured the
+-- glyph. Lines from another version -- or older files without one -- are
+-- dropped: the reader measures differently now, so they would fail to match
+-- or match the wrong letter. Whatever was in them gets learned again.
 local function parse(s)
+    local kept, stale = {}, 0
     for line in s:gmatch("[^\n]+") do
-        local ch, w, t, b, fs, st = line:match(
-            "^([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t?([^\t]*)$")
-        if ch then
+        local ch, w, t, b, fs, st, ver = line:match(
+            "^([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t?([^\t]*)\t?([^\t]*)$")
+        if ch and tonumber(ver) == SWSH.FEATURES then
             st = st ~= "" and st or "d"
             local f = {}
             for v in fs:gmatch("[^,]+") do f[#f + 1] = tonumber(v) end
             learned[#learned + 1] = { ch = ch, s = st, w = tonumber(w), t = tonumber(t),
                                       b = tonumber(b), f = f }
             perChar[ch] = (perChar[ch] or 0) + 1
+            kept[#kept + 1] = line
+        elseif ch then
+            stale = stale + 1
         end
+    end
+    if stale > 0 then
+        -- Rewrite the file without them, so this is said once, not forever.
+        data.write(LEARNED, #kept > 0 and (table.concat(kept, "\n") .. "\n") or "")
+        SWSH.log(SWSH.LV.important, C.warn, "DEV dropped ", stale,
+                 " learned glyphs measured by an older reader (fingerprint v",
+                 SWSH.FEATURES, " now); they will be learned again")
     end
 end
 parse(data.read(LEARNED) or "")
@@ -68,8 +83,8 @@ local function keep(ch, g, st)
     end
     local f = {}
     for i, v in ipairs(g.f) do f[i] = string.format("%.3g", v) end
-    data.append(LEARNED, string.format("%s\t%.4f\t%.4f\t%.4f\t%s\t%s\n",
-        ch, g.w, g.t, g.b, table.concat(f, ","), st))
+    data.append(LEARNED, string.format("%s\t%.4f\t%.4f\t%.4f\t%s\t%s\t%d\n",
+        ch, g.w, g.t, g.b, table.concat(f, ","), st, SWSH.FEATURES))
     learned[#learned + 1] = { ch = ch, s = st, w = g.w, t = g.t, b = g.b, f = g.f }
     perChar[ch] = (perChar[ch] or 0) + 1
     return true

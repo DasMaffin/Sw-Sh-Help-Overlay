@@ -37,6 +37,16 @@
   char, for sub-pixel rendering differences). `python3 dev/shift_test.py`
   checks every sample shifted +-3 px plus scenery false positives -- run it
   after any reader change.
+- **`SWSH.FEATURES` (10_mod.lua) is the fingerprint version. Bump it with
+  ANY change to how glyphs are measured** (ink, floor, weight, baseline,
+  grid). Learned glyphs carry it (7th column of learned.txt); mismatched
+  ones are dropped with one log line, and gen_atlas ignores them in
+  dev/learned/. Forgetting to bump = users' learned letters silently fail
+  to match (this happened once: "we already knew l").
+- Fingerprint cells are area-weighted over fractional pixel spans (thin
+  letters were unstable when snapped), and gen_atlas learns every sample
+  at sub-pixel OFFSETS too. Sub-pixel check:
+  3 of 1974 glyphs unknown at 1/3, 1/2, 2/3 px offsets, 0 wrong.
 - The font is not available to us (commercial, no romfs dump; the user won't
   dump their Switch). The atlas (`lua/autorun/05_atlas.lua`) is built from
   real captures only.

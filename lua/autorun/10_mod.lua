@@ -110,6 +110,13 @@ SWSH.NAME = {
               { y = 788, x0 = 352, x1 = 720 } },
 }
 
+-- The version of the glyph fingerprint (workers/reader.lua). BUMP IT
+-- whenever the reader measures glyphs differently (ink, baseline, weight,
+-- grid...): fingerprints of two versions don't compare, and a learned glyph
+-- from an older reader would fail to match, or match the wrong letter.
+-- Learned glyphs carry it; dev/gen_atlas.py rebuilds the shipped atlas.
+SWSH.FEATURES = 4
+
 -- The atlas the worker matches against: the shipped glyphs, plus whatever
 -- SWSH.extraGlyphs() returns. Only the dev teaching layer (lua/autorun/
 -- 90_dev_teach.lua) defines that; the shipping build has the atlas alone.

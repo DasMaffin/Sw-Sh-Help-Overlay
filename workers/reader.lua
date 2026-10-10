@@ -22,6 +22,7 @@
 --   capture resolution)
 --   (learned glyphs are appended and re-shared)
 
+-- Changing how glyphs are measured below? Bump SWSH.FEATURES (10_mod.lua).
 local GR, GC = 12, 6             -- fingerprint grid: rows x columns
 local INK    = 0.5               -- fraction of the line's contrast that is ink
 local MIN_RANGE = 60             -- less contrast than this: nothing to read
@@ -276,24 +277,30 @@ local function segment(rows, w, light, over)
         -- a neighbour reaching into these columns doesn't leak in.
         local gw = x2 - x + 1
         local ids, f = gr.ids, {}
+        -- Each grid cell covers a fractional span of pixels, and every pixel
+        -- counts by how much of it falls inside. Snapping the cells to whole
+        -- pixels made thin letters (an 'l' is ~5px across 6 columns) jump
+        -- between fingerprints as they moved by a fraction of a pixel.
+        local cw, ch = gw / GC, h / GR
         for gy = 0, GR - 1 do
-            local ya = top + math.floor(gy * h / GR) + 1
-            local yb = math.max(ya, top + math.floor((gy + 1) * h / GR))
+            local ya, yb = top + 1 + gy * ch, top + 1 + (gy + 1) * ch   -- [ya, yb)
             for gx = 0, GC - 1 do
-                local xa = x + math.floor(gx * gw / GC)
-                local xb = math.max(xa, x + math.floor((gx + 1) * gw / GC) - 1)
-                local sum, n = 0, 0
-                for yy = ya, yb do
+                local xa, xb = x + gx * cw, x + (gx + 1) * cw            -- [xa, xb)
+                local sum = 0
+                for yy = math.floor(ya), math.ceil(yb) - 1 do
+                    local oy = math.min(yb, yy + 1) - math.max(ya, yy)
                     local row, lrow = ink[yy], label[yy]
-                    if row then
-                        for xx = xa, xb do
+                    if oy > 0 and row then
+                        for xx = math.floor(xa), math.ceil(xb) - 1 do
+                            local ox = math.min(xb, xx + 1) - math.max(xa, xx)
                             local l = lrow[xx]
-                            if not l or ids[l] then sum = sum + row[xx] end
+                            if ox > 0 and (not l or ids[l]) then
+                                sum = sum + (row[xx] or 0) * ox * oy
+                            end
                         end
                     end
-                    n = n + (xb - xa + 1)
                 end
-                f[#f + 1] = sum / n
+                f[#f + 1] = sum / (cw * ch)
             end
         end
         glyphs[#glyphs + 1] = { x0 = x, x1 = x2, f = f, wn = gw / h,
@@ -320,7 +327,9 @@ local function match(g, atlas)
         -- so a candidate is dropped as soon as it passes that.
         local d = SHAPE_W * (math.abs(a.w - g.wn) + math.abs(a.t - g.tn)
                              + math.abs(a.b - g.bn))
-        if d < secondD then
+        -- (A malformed entry -- wrong fingerprint size -- is skipped, never
+        -- allowed to stop the reader.)
+        if d < secondD and #a.f == #g.f then
             local af, gf = a.f, g.f
             for k = 1, #gf do
                 d = d + math.abs(af[k] - gf[k])

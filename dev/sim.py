@@ -17,6 +17,7 @@ local logs = {}
 function log(m) print(m) end
 data = { files = {} }
 function data.read(n) return data.files[n] end
+function data.write(n, s) data.files[n] = s return true end
 function data.append(n, s) data.files[n] = (data.files[n] or "") .. s return true end
 function data.delete(n) data.files[n] = nil return true end
 local mod = { settings = {} }

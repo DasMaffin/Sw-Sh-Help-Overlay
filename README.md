@@ -54,6 +54,7 @@ Older builds get the same lines without colour or levels.
 | `DEV learned new letter 'l' (typed in; was read as "I")` | Learned from the manual teach panel (`line 1\|line 2\|name`). |
 | `DEV could not learn from "...": <reason>` | `not in the game text`, `ambiguous` (several answers fit), `too many unknowns` (more than 3), `too little known text`. It waits for another box. |
 | `DEV Learned N glyphs.` / `DEV learned glyphs cleared` | Teach panel results. |
+| `DEV dropped N learned glyphs measured by an older reader ...` | After an update that changed how glyphs are measured: your old learned letters no longer compare, so they're removed once and relearned. |
 | `DEV self-teaching is off -- no dev/teach/teach_<lang>.lua` | No game text for the chosen language. |
 | `frame format ... is not supported yet (NV12 only)` | Capture isn't NV12; nothing is read. |
 

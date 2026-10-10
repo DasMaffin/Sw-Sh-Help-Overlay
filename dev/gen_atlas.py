@@ -16,7 +16,7 @@ out of an install's data folder (written by the DEV teaching layer); their
 glyphs are baked in after the samples', up to PER_CHAR per character. The geometry below must match SWSH.BOX in
 lua/autorun/10_mod.lua.
 """
-import os, sys
+import os, re, sys
 import numpy as np
 from PIL import Image
 from lupa import lua54
@@ -31,6 +31,10 @@ NX0, NX1 = 345, 728                     # the name plate's text columns
 NAME = (792, 859)                       # ... and rows (white on dark)
 SX0, SX1 = 404, 1516                    # cutscene subtitles: columns (even)
 SUBS = [(922, 989), (1000, 1067)]       # ... and rows of each line
+# The fingerprint version, from lua/autorun/10_mod.lua.
+FEATURES = int(re.search(r"SWSH\.FEATURES\s*=\s*(\d+)",
+                         open(os.path.join(ROOT, "lua", "autorun", "10_mod.lua"),
+                              encoding="utf-8").read()).group(1))
 PER_CHAR = 8                            # distinct variants kept per character
 SAME = 2.0      # closer than this to a kept variant: already readable, skipped
 
@@ -61,10 +65,22 @@ def luma(path):
     return nv12(path)[0]
 
 
-def nv12(path):
+# Every sample is also learned from at these sub-pixel offsets: a letter
+# renders a little differently depending on where it falls on the pixel grid,
+# and the game puts it anywhere. Learning a few in-between positions up front
+# covers that instead of leaving it to in-game teaching.
+OFFSETS = [(0, 0), (0.25, 0), (0.5, 0), (0.75, 0), (0, 0.5), (0.5, 0.5)]
+
+
+def nv12(path, dx=0, dy=0):
     """(Y, UV) as an HD capture's NV12 frame holds them: limited-range BT.709
-    luma, and a half-size plane of interleaved U,V (one pair per 2x2)."""
-    im = np.asarray(Image.open(path).convert("RGB")).astype(float)
+    luma, and a half-size plane of interleaved U,V (one pair per 2x2).
+    dx, dy shift the picture by a fraction of a pixel first."""
+    img = Image.open(path).convert("RGB")
+    if dx or dy:
+        img = img.transform(img.size, Image.AFFINE, (1, 0, -dx, 0, 1, -dy),
+                            resample=Image.BILINEAR)
+    im = np.asarray(img).astype(float)
     R, G, B = im[..., 0], im[..., 1], im[..., 2]
     y = 16 + 0.1826 * R + 0.6142 * G + 0.0620 * B
     u = 128 - 0.1006 * R - 0.3386 * G + 0.4392 * B
@@ -108,8 +124,8 @@ def atlas_table(L, entries):
                      for c, w, t, b, f, st in entries])
 
 
-def read(L, path, kind="box"):
-    Y, UV = nv12(path)
+def read(L, path, kind="box", dx=0, dy=0):
+    Y, UV = nv12(path, dx, dy)
     r = L.globals().onJob(job(L, Y, kind=kind, UV=UV))
     out = []
     for i in (1, 2, 3):
@@ -137,15 +153,18 @@ def samples():
 def build():
     entries, count = [], {}
     for path, truth, kind in samples():
-        for i, ((text, glyphs), want) in enumerate(zip(read(runtime(), path, kind), truth)):
-            st = "n" if i == 2 else "d"
-            chars = [c for c in want if c != " "]
-            if len(chars) != len(glyphs):
-                print(f"skip {os.path.basename(path)} {want!r}: "
-                      f"{len(glyphs)} glyphs for {len(chars)} characters")
-                continue
-            for c, (w, t, b, f) in zip(chars, glyphs):
-                add(entries, count, (c, w, t, b, f, st))
+        for dx, dy in OFFSETS:
+            for i, ((text, glyphs), want) in enumerate(
+                    zip(read(runtime(), path, kind, dx, dy), truth)):
+                st = "n" if i == 2 else "d"
+                chars = [c for c in want if c != " "]
+                if len(chars) != len(glyphs):
+                    print(f"skip {os.path.basename(path)} {want!r} at +{dx},{dy}: "
+                          f"{len(glyphs)} glyphs for {len(chars)} characters")
+                    continue
+                for c, (w, t, b, f) in zip(chars, glyphs):
+                    add(entries, count, (c, w, t, b, f, st))
+    stale = 0
     learned_dir = os.path.join(ROOT, "dev", "learned")
     for name in sorted(os.listdir(learned_dir)) if os.path.isdir(learned_dir) else []:
         if not name.endswith(".txt"):
@@ -153,11 +172,16 @@ def build():
         with open(os.path.join(learned_dir, name), encoding="utf-8") as lf:
             for line in lf:
                 p = line.rstrip("\n").split("\t")
-                if len(p) not in (5, 6):
+                # Only glyphs measured by the current reader (7th column =
+                # SWSH.FEATURES); older ones don't compare with these.
+                if len(p) != 7 or int(p[6] or 0) != FEATURES:
+                    stale += 1
                     continue
-                c, st = p[0], (p[5] if len(p) == 6 else "d")
+                c, st = p[0], p[5] or "d"
                 add(entries, count, (c, float(p[1]), float(p[2]), float(p[3]),
                                      [float(v) for v in p[4].split(",")], st))
+    if stale:
+        print(f"ignored {stale} learned glyphs from an older reader (not v{FEATURES})")
     with open(OUT, "w", encoding="utf-8") as f:
         f.write("-- GENERATED by dev/gen_atlas.py from dev/samples -- do not edit.\n")
         f.write("-- Glyph fingerprints of the Sword/Shield dialogue font; see\n")
