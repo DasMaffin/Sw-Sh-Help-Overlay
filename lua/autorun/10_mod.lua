@@ -53,6 +53,9 @@ SWSH.mod:addSetting("log_text", "Print what is read to the console", "bool", nil
 SWSH.mod:addSetting("read_all", "Read text outside battles too", "bool", nil, false)
 SWSH.mod:addSetting("show_stats", "Show both Pokemon's stats in battle", "bool", nil, true)
 -- The checklist panel (45_dex.lua); its own X turns this back off.
+-- What's met in the area the game's banner last named (50_route.lua).
+SWSH.mod:addSetting("route_info", "Show route information", "choice",
+                    { "on", "off", "overlay only" }, "on")
 SWSH.mod:addSetting("pokedex", "Pokedex checklist", "bool", nil, false)
 -- Outlines the lines being read and shows the latest reading over the picture.
 SWSH.mod:addSetting("debug", "Show what the reader sees", "bool", nil, false)
@@ -108,6 +111,16 @@ SWSH.HPBOX = {
              hp   = { x0 = 18,   x1 = 240,  y0 = 995, y1 = 1045 } },
     foe  = { name = { x0 = 1462, x1 = 1700, y0 = 44,  y1 = 92 },
              lv   = { x0 = 1800, x1 = 1915, y0 = 40,  y1 = 86 } },
+}
+
+-- The area banner, shown a few seconds on entering an area: the name in white
+-- on a flat magenta band at the bottom right ("Rolling Fields"), the region
+-- under it on grey ("Wild Area"). Told by the band's colour: magenta has a
+-- chroma nothing else there has (V ~196 in the NV12 frame).
+SWSH.AREA = {
+    name = { x0 = 1180, x1 = 1910, y0 = 914, y1 = 990 },
+    sub  = { x0 = 1240, x1 = 1910, y0 = 1004, y1 = 1054 },
+    band = { { y = 900, x0 = 1400, x1 = 1910 }, { y = 987, x0 = 1400, x1 = 1910 } },
 }
 
 -- The dark system message box ("Scorbunny has been added to your party.").

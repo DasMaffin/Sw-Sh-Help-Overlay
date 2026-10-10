@@ -66,6 +66,26 @@ Before a level is read the rows are base stats ("base stats" in the title
 bar). A name that isn't a species — a nickname — shows as "not in the
 Pokédex". A species with a Galarian form shows that form.
 
+## Route information
+
+On entering an area the game shows its name bottom right ("Rolling Fields",
+"Wild Area" under it, on a magenta band). That banner is read, and a list
+top left — like pkmn_stats' FRLG route panel — shows what's met there in the
+version you're playing:
+
+- each species, coloured by its best way of meeting it (green on land, blue
+  on water; a wave for surfing, a rod for fishing, a tree for shaking trees)
+  with its best rate, and the ball (click: caught);
+- **hovering** a row: every way it's met here — how, rate, levels, and the
+  weather it needs — and where else it's met;
+- **clicking** a row opens its Bulbapedia page.
+
+Towns say "No wild Pokemon here". The area is remembered across restarts;
+the list steps aside during battles. Setting *Show route information*: on,
+off, or overlay only. Data: `lua/autorun/08_areas.lua`, from the game's own
+encounter tables (a zone's surfing, flying and sub-areas are under the name
+the banner shows).
+
 ## Pokédex checklist
 
 Turn on *Pokedex checklist* in the settings: a panel down the right of the
@@ -97,6 +117,7 @@ both DLCs) with a ball to tick.
 | `[you] Scorbunny Lv.6` | A level read off an HP panel (`[foe]` for theirs). |
 | `[trainer] Pokemon Trainer Hop` | The trainer you're fighting, from the battle text. |
 | `[foe] Grookey Lv.5 of Pokemon Trainer Hop: exact stats, Hardy` | Their Pokémon was found in their team. |
+| `[area] Rolling Fields (Wild Area)` | The area banner was read (`(no wild Pokemon)` for a town). |
 | `[dex] Wooloo caught (caught in battle)` | A Pokédex checklist mark changed (`(clicked)` when by hand). |
 | `the OCR module isn't available ...` | `bin/ocr.dll` is missing or failed to load. |
 | `OCR failed: ...` | The module reported an error for a job. |
@@ -110,7 +131,7 @@ The English model only knows ASCII, so `'` is printed as `’` and `--` as `—`
 put back in the money messages ("You got ₽400 for winning!").
 
 Settings: *Print what is read to the console*; *Read text outside battles too*
-(off: battle text only); *Show both Pokemon's stats in battle*; *Pokedex checklist*; and *Show
+(off: battle text only); *Show both Pokemon's stats in battle*; *Pokedex checklist*; *Show route information* (on / off / overlay only); and *Show
 what the reader sees* (outlines the lines being read and shows the latest
 reading).
 
@@ -122,12 +143,14 @@ python3 dev/sim.py                       # every screenshot in dev/samples
 python3 dev/sim.py dev/samples/hop_1.webp
 python3 dev/sim.py --png out --say "Go! Scorbunny!" dev/samples/battle_moves.webp
 python3 dev/sim.py --png out --dex --hover 1600,300 dev/samples/battle_moves.webp
+python3 dev/sim.py --png out --hover 100,175 dev/samples/area_rolling_fields.webp
 ```
 
 [docs/wild.md](docs/wild.md) lists the wild Pokémon of every area — how
 they're met, levels, weather, rates — with Sword and Shield exclusives marked.
 
-Trainer teams, the checklist's data (`07_pokedex.lua`) and the wild list are dumped from your own game files with
+Trainer teams, the checklist's and route list's data (`07_pokedex.lua`,
+`08_areas.lua`) and the wild list are dumped from your own game files with
 pkNX (`dev/pknx-export`, needs a clone of kwsch/pkNX and Oodle's
 `oo2core_8_win64.dll` beside the exe), then generated:
 

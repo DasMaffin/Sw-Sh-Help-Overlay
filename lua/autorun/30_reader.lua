@@ -13,6 +13,7 @@
 local S = {
     kind  = nil,     -- what is on screen: "box", "battle", "sys", "sub" or nil
     menu  = false,   -- a battle menu is up (the player's HP panel shows)
+    battleFrame = nil, -- the last frame with a battle box or menu up
     lines = {},      -- the latest reading, line by line
     name  = "",      -- the speaker, "" without a name plate
     pending = nil,   -- the latest reading { kind, name, lines, text, body }
@@ -75,6 +76,22 @@ local function sysOpen(frame, sx, sy)     -- mid-dark grey and flat
     local lo, hi = probeRange(frame, SWSH.SYS.ground, sx, sy)
     return hi <= 90 and lo >= 25 and hi - lo <= 25
 end
+-- The area banner's magenta band: flat in luma, and magenta in chroma -- the
+-- chroma plane's rows follow the luma's, U,V interleaved at half size.
+local function bannerOpen(frame, sx, sy)
+    local lo, hi = probeRange(frame, SWSH.AREA.band, sx, sy)
+    if not (lo >= 50 and hi <= 115 and hi - lo <= 35) then return false end
+    for _, p in ipairs(SWSH.AREA.band) do
+        local x0 = math.floor(p.x0 * sx / 2) * 2
+        local s = frame:region(x0, frame:height() + math.floor(p.y * sy / 2),
+                               math.floor((p.x1 - p.x0) * sx / 2) * 2, 1)
+        for i = 1, #s - 1, 16 do
+            local u, v = s:byte(i), s:byte(i + 1)
+            if v < 175 or u < 115 or u > 165 then return false end
+        end
+    end
+    return true
+end
 
 -- A line region for ocr.read, from 1080p coordinates.
 local function region(key, x0, x1, band, sx, sy)
@@ -104,7 +121,14 @@ function SWSH.mod:OnFrame(frame)
     local all = SWSH.mod:get("read_all")    -- off: battle text only
     S.menu = menuOpen(frame, sx, sy)
     local kind, regions = nil, {}
-    if all and boxOpen(frame, sx, sy) then
+    if SWSH.mod:get("route_info") ~= "off" and bannerOpen(frame, sx, sy) then
+        -- Entering an area: its name (50_route.lua).
+        see(nil)
+        kind = "area"
+        for what, r in pairs({ name = SWSH.AREA.name, sub = SWSH.AREA.sub }) do
+            regions[#regions + 1] = region(what, r.x0, r.x1, { r.y0, r.y1 }, sx, sy)
+        end
+    elseif all and boxOpen(frame, sx, sy) then
         kind = "box"
         for i, band in ipairs(SWSH.BOX.lines) do
             regions[#regions + 1] = region(i, SWSH.BOX.x0, SWSH.BOX.x1, band, sx, sy)
@@ -115,6 +139,7 @@ function SWSH.mod:OnFrame(frame)
     elseif battleOpen(frame, sx, sy) then
         -- Before the system box: its probes would match the battle band too.
         kind = "battle"
+        S.battleFrame = frameNo
         for i, band in ipairs(SWSH.BATTLE.lines) do
             regions[#regions + 1] = region(i, SWSH.BATTLE.x0, SWSH.BATTLE.x1, band, sx, sy)
         end
@@ -129,6 +154,7 @@ function SWSH.mod:OnFrame(frame)
         -- for a subtitle, so no subtitles here.
         see(nil)
         kind = "panel"
+        S.battleFrame = frameNo
         for side, p in pairs(SWSH.HPBOX) do
             for what, r in pairs(p) do
                 regions[#regions + 1] = region(side .. "." .. what, r.x0, r.x1, { r.y0, r.y1 }, sx, sy)
@@ -209,6 +235,15 @@ local function apply(res)
         SWSH.log(SWSH.LV.important, SWSH.C.error, "OCR failed: ", res.error)
         return
     end
+    if kind == "area" then               -- the area banner, for 50_route
+        local got = {}
+        for _, r in ipairs(res.regions) do
+            local l = r.lines[1]
+            if l and l.score >= MIN_SCORE then got[r.key] = l.text end
+        end
+        if SWSH.onArea then SWSH.onArea(got.name, got.sub) end
+        return
+    end
     if kind == "panel" then              -- HP panels: key -> text, for 40_battle
         local got = {}
         for _, r in ipairs(res.regions) do
@@ -265,6 +300,12 @@ see = function(cur)
     end
     S.pending = cur
     if not cur then S.logged = nil end   -- the same words again later are new
+end
+
+-- A battle is on: its box or menu was up in the last ~4 s (the move
+-- animations between them show neither).
+function SWSH.inBattle()
+    return S.battleFrame ~= nil and frameNo - S.battleFrame < 240
 end
 
 function SWSH.mod:Think()

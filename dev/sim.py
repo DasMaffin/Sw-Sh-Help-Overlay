@@ -47,8 +47,10 @@ function overlay.screenW() return 1920 end
 function overlay.screenH() return 1080 end
 function overlay.mouseX() return overlay.mouse[1] end
 function overlay.mouseY() return overlay.mouse[2] end
+function overlay.isOpen() return false end
 function overlay.add(id, spec) spec.id = id overlay.elements[id] = spec return spec end
-hook = { Add = function() end }
+hook = { fns = {} }
+function hook.Add(ev, name, fn) hook.fns[name] = fn end
 camera = { pictureRect = function() return 0, 0, 1920, 1080 end }
 -- Paints an overlay element, printing its text calls; returns every call.
 function sim_paint(id)
@@ -61,6 +63,7 @@ function sim_paint(id)
         texts[#texts + 1] = str
         ops[#ops + 1] = { "text", x, y, str, ... }
     end
+    for _, fn in pairs(hook.fns) do fn(overlay.elements[id]) end
     overlay.elements[id].paint(d, overlay.elements[id])
     if #texts > 0 then print("[draw] " .. table.concat(texts, " | ")) end
     return ops
@@ -198,7 +201,8 @@ def main():
     mod.settings["pokedex"] = dex
     if hover:
         L.globals().overlay.mouse = L.table(*hover)
-        L.globals().overlay.elements["swsh.dex"].hovered = True
+        for el in ("swsh.dex", "swsh.route"):
+            L.globals().overlay.elements[el].hovered = True
     for line in say:
         print("== say:", line)
         L.globals().SWSH.onBattleText(L.table(line))
@@ -220,6 +224,8 @@ def main():
             mod.Think(mod)
             mod.OnFrame(mod, frame)
         ops = [list(o.values()) for o in L.globals().sim_paint("swsh.stats").values()]
+        for el in ("swsh.route", "swsh.routeinfo"):
+            ops += [list(o.values()) for o in L.globals().sim_paint(el).values()]
         if dex:
             ops += [list(o.values()) for o in L.globals().sim_paint("swsh.dex").values()]
         if png:

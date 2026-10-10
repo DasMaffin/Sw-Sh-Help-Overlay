@@ -43,5 +43,10 @@
   dumps from the user's own extracted game in `ROMs/out` (gitignored, never
   commit; Shield 1.3.1). Oodle for pkNX: Cyberpunk's `oo2ext_7_win64.dll`
   copied as `oo2core_8_win64.dll` next to the exe.
+- Area banner (bottom right on entering an area, `SWSH.AREA`): detected by
+  its magenta CHROMA (V plane, rows after the luma: `frame:region(x,
+  h + y/2, ...)`, U,V interleaved), read as kind "area" -> `SWSH.onArea` in
+  `50_route.lua` (FRLG route panel port; data `08_areas.lua` keyed by banner
+  name). `SWSH.inBattle()` = battle box/menu seen in the last ~4 s.
 - `45_dex.lua` is the Pokedex checklist, ported from pkmn_stats'
   `75_ui_dex.lua` (FRLG); caught marks in `data` file caught.txt by DEX key.

@@ -219,6 +219,7 @@ local function openWiki(e)
         or e[1]:gsub(" ", "_"):gsub("'", "%%27")
     browser.open("https://bulbapedia.bulbagarden.net/wiki/" .. slug .. "_(Pok%C3%A9mon)")
 end
+SWSH.drawBall, SWSH.openWiki = ball, openWiki
 
 ----------------------------------------------------------------- layout --
 -- One layout for paint and hit-test. Against the window's right edge, full

@@ -8,3 +8,4 @@ system_scorbunny.png	Scorbunny has been added to|your party.		sys
 battle_exp.webp	Your Pokémon gained Exp. Points!|		battle
 battle_moves.webp	|		
 battle_money.webp	You got ₽400 for winning!|		battle
+area_rolling_fields.webp	Rolling Fields|Wild Area		area
