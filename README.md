@@ -13,7 +13,7 @@ Without it the addon logs that the module is missing and does nothing.
 addons/Sw-Sh-Help-Overlay/
   mod.txt                    version; depends on ocr
   lua/autorun/10_mod.lua     registration, settings, logging, where the text is
-  lua/autorun/05_dex.lua     base stats, Gen 1-8 (generated from Showdown's data)
+  lua/autorun/05_dex.lua     Gen 8 base stats, #1-898 (generated from Showdown's data)
   lua/autorun/30_reader.lua  which box is up -> ocr.read -> ocr.poll -> console
   lua/autorun/40_battle.lua  who is fighting (from the battle text); stats panel
   dev/                       sample screenshots and a simulator (not used by MCCP)

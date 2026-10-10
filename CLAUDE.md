@@ -22,8 +22,9 @@
   only battle text is read (setting `read_all` adds dialogue/sys/subtitles).
   Battle text feeds `40_battle.lua` (who's fighting) -> base-stat panel above
   the player's HP panel while `SWSH.BATTLE.panel` (battle menu) is white.
-- `lua/autorun/05_dex.lua` is generated from Showdown's pokedex.json (keys =
-  lowercase alnum names, Galarian forms preferred); regenerate with
+- `lua/autorun/05_dex.lua` is generated from Showdown's pokedex.json (today's stats +
+  Showdown's gen8 mod = Sword/Shield numbers; keys = lowercase alnum names,
+  Galarian forms preferred); regenerate with
   `dev/gen_dex.py`, don't hand-edit.
 - Geometry is measured at 1920x1080 in `lua/autorun/10_mod.lua` (`SWSH.BOX`,
   `NAME`, `BATTLE`, `SYS`, `SUB`; battle is checked before sys, whose probes
