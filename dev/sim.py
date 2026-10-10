@@ -6,6 +6,8 @@
 
 --all turns on the "read_all" setting (dialogue, system and cutscene text, not
 only battle text). --png DIR saves each picture with the overlays drawn on it (DIR/<name>.png).
+--dex opens the Pokedex checklist and paints it too; --hover X,Y puts the
+pointer there (over a row: its "where to get it" card).
 --say feeds a battle line to SWSH.onBattleText first, as if
 it had been read. After each picture the stats overlay is painted and what it
 would draw is printed as [draw] lines.
@@ -33,19 +35,25 @@ function log(...)
     end
     print("[mod] " .. table.concat(out))
 end
-data = {}
+local files = {}
+data = { read = function(f) return files[f] end, write = function(f, s) files[f] = s end }
 local mod = { settings = {} }
+function mod:set(k, v) self.settings[k] = v end
 function mod:addSetting(k, l, kind, o, def) if def == nil then def = (kind == "bool") end self.settings[k] = def return self end
 function mod:get(k) return self.settings[k] end
 game = { register = function() return mod end, isActive = function() return true end }
-overlay = { elements = {} }
+overlay = { elements = {}, mouse = { -1, -1 } }
+function overlay.screenW() return 1920 end
+function overlay.screenH() return 1080 end
+function overlay.mouseX() return overlay.mouse[1] end
+function overlay.mouseY() return overlay.mouse[2] end
 function overlay.add(id, spec) spec.id = id overlay.elements[id] = spec return spec end
 hook = { Add = function() end }
 camera = { pictureRect = function() return 0, 0, 1920, 1080 end }
 -- Paints an overlay element, printing its text calls; returns every call.
 function sim_paint(id)
     local texts, ops = {}, {}
-    local d = {}
+    local d = { w = function() return 1920 end, h = function() return 1080 end }
     for _, m in ipairs({ "rect", "outline", "line", "image", "text" }) do
         d[m] = function(_, ...) ops[#ops + 1] = { m, ... } end
     end
@@ -165,12 +173,14 @@ def render(path, ops, outdir):
 
 
 def main():
-    args, say, read_all, png = sys.argv[1:], [], False, None
+    args, say, read_all, png, dex, hover = sys.argv[1:], [], False, None, False, None
     while args and args[0].startswith("--"):
         a = args.pop(0)
         if a == "--all": read_all = True
         elif a == "--say": say.append(args.pop(0))
         elif a == "--png": png = args.pop(0)
+        elif a == "--dex": dex = True
+        elif a == "--hover": hover = [float(v) for v in args.pop(0).split(",")]
     paths = args or sorted(p for p in glob.glob(os.path.join(ROOT, "dev", "samples", "*.*"))
                                    if not p.endswith(".txt"))
     L = lua54.LuaRuntime(encoding="utf-8")
@@ -185,6 +195,10 @@ def main():
         L.execute(open(f, encoding="utf-8").read())
     mod = L.globals().SWSH["mod"]
     mod.settings["read_all"] = read_all
+    mod.settings["pokedex"] = dex
+    if hover:
+        L.globals().overlay.mouse = L.table(*hover)
+        L.globals().overlay.elements["swsh.dex"].hovered = True
     for line in say:
         print("== say:", line)
         L.globals().SWSH.onBattleText(L.table(line))
@@ -205,9 +219,11 @@ def main():
         for _ in range(60):
             mod.Think(mod)
             mod.OnFrame(mod, frame)
-        ops = L.globals().sim_paint("swsh.stats")
+        ops = [list(o.values()) for o in L.globals().sim_paint("swsh.stats").values()]
+        if dex:
+            ops += [list(o.values()) for o in L.globals().sim_paint("swsh.dex").values()]
         if png:
-            render(path, [list(o.values()) for o in ops.values()], png)
+            render(path, ops, png)
         # The picture goes away (a blank frame), so the next one prints afresh.
         blank = Y * 0 + 40
         fake.frame = blank

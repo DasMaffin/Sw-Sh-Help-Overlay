@@ -52,6 +52,8 @@ SWSH.mod:addSetting("log_text", "Print what is read to the console", "bool", nil
 -- Off: only battle text is read. On: dialogue, system and cutscene text too.
 SWSH.mod:addSetting("read_all", "Read text outside battles too", "bool", nil, false)
 SWSH.mod:addSetting("show_stats", "Show both Pokemon's stats in battle", "bool", nil, true)
+-- The checklist panel (45_dex.lua); its own X turns this back off.
+SWSH.mod:addSetting("pokedex", "Pokedex checklist", "bool", nil, false)
 -- Outlines the lines being read and shows the latest reading over the picture.
 SWSH.mod:addSetting("debug", "Show what the reader sees", "bool", nil, false)
 

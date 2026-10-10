@@ -66,6 +66,23 @@ Before a level is read the rows are base stats ("base stats" in the title
 bar). A name that isn't a species — a nickname — shows as "not in the
 Pokédex". A species with a Galarian form shows that form.
 
+## Pokédex checklist
+
+Turn on *Pokedex checklist* in the settings: a panel down the right of the
+window, like pkmn_stats' FRLG one, listing every species in Sword/Shield (664,
+both DLCs) with a ball to tick.
+
+- **National / Galar / Armor / Tundra** picks the dex — each regional one in
+  its own order and numbers. The count (`12/400`) is within that dex.
+- **Showing:** cycles everything / still missing / caught.
+- **The ball** toggles caught. "Gotcha! … was caught!" in the battle text ticks
+  it by itself.
+- **Hovering a row** says where it's found in the wild in the version you're
+  playing, best rate first — or that only the other version has it, or that no
+  wild table does (evolve, raid, trade or gift).
+- **Clicking a row** opens its Bulbapedia page. The wheel scrolls; the panel
+  can be dragged, and the pin keeps it up with the overlay closed.
+
 ## Console output
 
 | Line | When |
@@ -80,6 +97,7 @@ Pokédex". A species with a Galarian form shows that form.
 | `[you] Scorbunny Lv.6` | A level read off an HP panel (`[foe]` for theirs). |
 | `[trainer] Pokemon Trainer Hop` | The trainer you're fighting, from the battle text. |
 | `[foe] Grookey Lv.5 of Pokemon Trainer Hop: exact stats, Hardy` | Their Pokémon was found in their team. |
+| `[dex] Wooloo caught (caught in battle)` | A Pokédex checklist mark changed (`(clicked)` when by hand). |
 | `the OCR module isn't available ...` | `bin/ocr.dll` is missing or failed to load. |
 | `OCR failed: ...` | The module reported an error for a job. |
 | `frame format ... is not supported` | The capture isn't NV12. |
@@ -92,7 +110,7 @@ The English model only knows ASCII, so `'` is printed as `’` and `--` as `—`
 put back in the money messages ("You got ₽400 for winning!").
 
 Settings: *Print what is read to the console*; *Read text outside battles too*
-(off: battle text only); *Show both Pokemon's stats in battle*; and *Show
+(off: battle text only); *Show both Pokemon's stats in battle*; *Pokedex checklist*; and *Show
 what the reader sees* (outlines the lines being read and shows the latest
 reading).
 
@@ -103,12 +121,13 @@ pip install lupa pillow numpy rapidocr_onnxruntime
 python3 dev/sim.py                       # every screenshot in dev/samples
 python3 dev/sim.py dev/samples/hop_1.webp
 python3 dev/sim.py --png out --say "Go! Scorbunny!" dev/samples/battle_moves.webp
+python3 dev/sim.py --png out --dex --hover 1600,300 dev/samples/battle_moves.webp
 ```
 
 [docs/wild.md](docs/wild.md) lists the wild Pokémon of every area — how
 they're met, levels, weather, rates — with Sword and Shield exclusives marked.
 
-Trainer teams and the wild list are dumped from your own game files with
+Trainer teams, the checklist's data (`07_pokedex.lua`) and the wild list are dumped from your own game files with
 pkNX (`dev/pknx-export`, needs a clone of kwsch/pkNX and Oodle's
 `oo2core_8_win64.dll` beside the exe), then generated:
 

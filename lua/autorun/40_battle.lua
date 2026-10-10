@@ -60,6 +60,7 @@ local function lookup(name)
     end
     return not tie and best or nil
 end
+SWSH.lookup = lookup
 
 -------------------------------------------------------------- trainers --
 -- SWSH.TRAINERS by key. "Pokémon" folds to "pokemon", as the OCR (ASCII
@@ -151,6 +152,13 @@ function SWSH.onBattleText(lines)
     for _, opener in ipairs(MINE) do
         local name = s:match(opener .. "([^!,]+)!")
         if name then set("mine", name) return end
+    end
+    -- "Gotcha! Wooloo was caught!": ticks it in the Pokedex checklist.
+    local caught = s:match("([^!]-) was caught!")
+    if caught and SWSH.caught then
+        local e = lookup((caught:gsub("^%s+", "")))
+        if e then SWSH.caught.mark(e, "caught in battle") end
+        return
     end
     local by = s:match("challenged by (.-)!")
     if by then setTrainer(by) return end
@@ -274,6 +282,7 @@ local function typeText(d, x, y, types, size)
     end
     return x
 end
+SWSH.typeText, SWSH.rightText = typeText, rightText
 
 local function drawPanel(d, side, s, px, py, scale)
     local who, at = B[side], PLACE[side]

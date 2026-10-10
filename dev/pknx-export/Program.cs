@@ -73,6 +73,27 @@ for (int i = 0; i < tr.Length; i++)
 Save("trainers.json", trainers);
 Console.WriteLine($"{trainers.Count} trainers");
 
+// ------------------------------------------------------------- species --
+// Per species (all its forms together): in the game at all, and its number in
+// the Galar, Isle of Armor and Crown Tundra dexes (0 = not in it).
+var dex = new List<object>();
+for (ushort sp = 1; sp < species.Length && sp <= 898; sp++)
+{
+    var b0 = (PersonalInfo8SWSH)personal.GetFormEntry(sp, 0);
+    var forms = Enumerable.Range(0, Math.Max(1, (int)b0.FormCount))
+        .Select(f => (PersonalInfo8SWSH)personal.GetFormEntry(sp, (byte)f)).ToArray();
+    dex.Add(new
+    {
+        dex = sp, species = species[sp],
+        present = forms.Any(f => f.IsPresentInGame),
+        galar = forms.Max(f => (int)f.DexIndexRegional),
+        armor = forms.Max(f => (int)f.ArmorDexIndex),
+        crown = forms.Max(f => (int)f.CrownDexIndex),
+    });
+}
+Save("species.json", dex);
+Console.WriteLine($"{dex.Count} species");
+
 // -------------------------------------------------------------- wilds --
 var pack = new GFPack(rom.GetFile(GameFile.NestData)[0]);
 var weather = Enum.GetNames<SWSHEncounterType>().Select(z => z.Replace("_", " ")).ToArray();
