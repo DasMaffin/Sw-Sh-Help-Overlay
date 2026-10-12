@@ -4,9 +4,11 @@
 -- the game's own evolution table). Further steps count too: with Charmander
 -- caught and Charmeleon not, Charizard is listed "via Charmeleon".
 --
--- Opened by the setting "Evolutions you can get"; its X turns it off. Wheel
--- scrolls, a click opens the Bulbapedia page, the ball marks it caught (and
--- so takes it off the list).
+-- The setting "Evolutions you can get": off / on / overlay only (shown only
+-- while MCCP's overlay is open); its X turns it off. A window: drag it by
+-- the background, resize it by its edges; where and how big is remembered
+-- (data file evospos.txt). Wheel scrolls, a click opens the Bulbapedia page,
+-- the ball marks it caught (and so takes it off the list).
 
 SWSH = SWSH or {}
 
@@ -29,7 +31,10 @@ end
 
 local function active() return game.isActive("pkmn_sword") or game.isActive("pkmn_shield") end
 local function isOpen()
-    return SWSH.mod:get("evolutions") == true and active() and not (SWSH.hideForMenu and SWSH.hideForMenu())
+    local mode = SWSH.mod:get("evos")
+    if not active() or mode == "off" or mode == nil then return false end
+    if mode == "overlay only" then return overlay.isOpen and overlay.isOpen() end
+    return not (SWSH.hideForMenu and SWSH.hideForMenu())
 end
 local function version() return game.isActive("pkmn_shield") and "Shield" or "Sword" end
 
@@ -88,12 +93,24 @@ local function build()
     return list
 end
 
--- Rows with their heights (the how wraps), and what fits from `top`.
-local function layout(sw, sh)
+-- The window's rect when nothing was saved: top middle, 76 units wide.
+local POS_FILE = "evospos.txt"
+local home
+do
+    local body = data and data.read and data.read(POS_FILE)
+    local a, b, c, e = (body or ""):match("^(-?[%d.]+)%s+(-?[%d.]+)%s+([%d.]+)%s+([%d.]+)")
+    if a then home = { tonumber(a), tonumber(b), tonumber(c), tonumber(e) } end
+end
+local function homeRect(sw, sh)
+    if home then return home[1], home[2], home[3], home[4] end
     local u = U * sh / SWSH.REF_H
-    local W = W_N * u
-    local x, y = (sw - W) / 2, 2 * u
-    local maxH = sh - 4 * u
+    return (sw - W_N * u) / 2, 2 * u, W_N * u, sh * 0.6
+end
+
+-- Rows with their heights (the how wraps), and what fits from `top`, in the
+-- window's rect as it is now (dragged, resized).
+local function layout(x, y, W, maxH)
+    local u = U * overlay.screenH() / SWSH.REF_H
     local list = build()
     local maxc = math.floor((W - 2.8 * u - 4.0 * u) / (1.4 * u))
     for _, r in ipairs(list) do
@@ -116,8 +133,7 @@ local function layout(sw, sh)
         rows[#rows + 1] = r
         yy = yy + r.h
     end
-    local H = math.max(yy, HEAD_N + 3.2) + 1.0
-    return { x = x, y = y, W = W, H = H * u, u = u, rows = rows, n = #list, last = last,
+    return { x = x, y = y, W = W, H = maxH, u = u, rows = rows, n = #list, last = last,
              close = { x + W - 3.8 * u, y + 1.0 * u, 2.4 * u, 2.4 * u } }
 end
 
@@ -130,25 +146,36 @@ local function rowAt(L, my)
     end
 end
 
+local function rectOf(self)
+    local hx, hy, hw, hh = homeRect(overlay.screenW(), overlay.screenH())
+    return self.x or hx, self.y or hy, self.w or hw, self.h or hh
+end
+
 overlay.add("swsh.evos", {
     mode = "pinned",
+    movable = true, resizable = true, minW = 320, minH = 160,
+    -- Saved for the next run only: this run the engine keeps the drag and
+    -- size itself, on top of the base rect the hook gives.
+    OnDragEnd = function(self)
+        if data and data.write then data.write(POS_FILE, ("%.0f %.0f %.0f %.0f"):format(self.x, self.y, self.w, self.h)) end
+    end,
     OnWheel = function(_, _, _, dy)
         if not isOpen() then return end
         top = math.max(1, top - (dy > 0 and 2 or -2))
     end,
     OnMouseDown = function(self, lx, ly, btn)
         if btn ~= 1 or not isOpen() then return end
-        local L = layout(overlay.screenW(), overlay.screenH())
-        local mx, my = lx + (self.x or 0), ly + (self.y or 0)
-        if hit(L.close, mx, my) then SWSH.mod:set("evolutions", false) return end
+        local L = layout(rectOf(self))
+        local mx, my = lx + L.x, ly + L.y
+        if hit(L.close, mx, my) then SWSH.mod:set("evos", "off") return end
         local r = rowAt(L, my)
         if not r then return end
         if hit(ballRect(L, r), mx, my) then SWSH.caught.toggle(r.toKey) return end
         if SWSH.openWiki then SWSH.openWiki(SWSH.DEX[r.toKey]) end
     end,
-    paint = function(d)
+    paint = function(d, self)
         if not isOpen() then return end
-        local L = layout(d:w(), d:h())
+        local L = layout(rectOf(self or {}))
         local x, y, W, H, u = L.x, L.y, L.W, L.H, L.u
         local mx, my = overlay.mouseX and overlay.mouseX() or -1, overlay.mouseY and overlay.mouseY() or -1
         d:rect(x, y, W, H, 20, 22, 32, 236)
@@ -193,7 +220,8 @@ overlay.add("swsh.evos", {
 hook.Add("OverlayElement", "swsh.evosRegion", function(el)
     if el.id ~= "swsh.evos" then return end
     if not isOpen() then el.hidden = true return end
-    local L = layout(overlay.screenW(), overlay.screenH())
+    -- The same base rect every frame (the saved one, or home): the engine
+    -- adds the user's drag and size on top, after this hook.
     el.hidden = false
-    el.x, el.y, el.w, el.h = L.x, L.y, L.W, L.H
+    el.x, el.y, el.w, el.h = homeRect(overlay.screenW(), overlay.screenH())
 end)

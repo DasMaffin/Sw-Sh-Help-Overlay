@@ -247,7 +247,7 @@ def main():
             ops += [list(o.values()) for o in L.globals().sim_paint("swsh.dex").values()]
         if progress:
             ops += [list(o.values()) for o in L.globals().sim_paint("swsh.progress").values()]
-        if mod.settings["evolutions"]:
+        if mod.settings["evos"] != "off":
             ops += [list(o.values()) for o in L.globals().sim_paint("swsh.evos").values()]
         if png:
             render(path, ops, png)

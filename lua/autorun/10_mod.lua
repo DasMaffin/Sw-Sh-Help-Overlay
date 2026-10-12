@@ -59,7 +59,8 @@ SWSH.mod:addSetting("route_info", "Show route information", "choice",
                     { "on", "off", "overlay only" }, "on")
 SWSH.mod:addSetting("pokedex", "Pokedex checklist", "bool", nil, false)
 -- Evolutions of what you have caught that you don't have yet (47_evos.lua).
-SWSH.mod:addSetting("evolutions", "Evolutions you can get", "bool", nil, false)
+-- A new key: the old "evolutions" was a bool.
+SWSH.mod:addSetting("evos", "Evolutions you can get", "choice", { "off", "on", "overlay only" }, "off")
 -- Story progress (48_progress.lua): ticked from the game's text, fixable here.
 SWSH.mod:addSetting("badges", "Gym Badges you hold", "multi",
                     { "Grass", "Water", "Fire", "Fighting", "Ghost", "Fairy", "Rock", "Ice", "Dark", "Dragon" })

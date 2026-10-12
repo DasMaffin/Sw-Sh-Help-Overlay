@@ -82,7 +82,13 @@
   `SWSH.inBattle()` hides the route list. Game menus: black hint bar
   (`SWSH.MENU`), `SWSH.hideForMenu()` hides every panel unless MCCP's
   overlay is open.
-- `47_evos.lua`: evolutions you can get from caught species; data
+- `47_evos.lua`: evolutions you can get from caught species (setting `evos`
+  off/on/overlay only; movable + resizable window). Movable windows (evos,
+  progress editor): the OverlayElement hook gives a CONSTANT base rect;
+  the engine adds drag/resize after it, so the final rect is only saved
+  (evospos.txt / progresspos.txt) and used as the base next run. The progress
+  editor opens left of MCCP's 620px-wide settings panel (panels draw over
+  paint elements). Data
   `09_evolutions.lua` from the game's evolution table (pknx-export
   evolutions.json -> gen_romdata; Shedinja added by hand).
 - `45_dex.lua` is the Pokedex checklist, ported from pkmn_stats'

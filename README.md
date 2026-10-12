@@ -173,15 +173,17 @@ tick themselves from the game's own words — "You defeated Gym Leader Milo!"
 and the badge being handed over, "You obtained a Catching Charm!", the Water Mode
 upgrade — and can be set by hand (do that once if you start mid-game):
 in the settings, or in the **progress editor** (setting *Progress editor*: a
-panel with every badge and key item to click on and off; its X closes it).
+panel with every badge and key item to click on and off — the same settings
+as the two dropdowns, just quicker to click. It opens left of MCCP's settings
+window, can be dragged anywhere and remembers where; its X closes it).
 Badges count by the highest Gym ticked, so a missed one never lowers it.
 
 What it's for:
 
 - the **catch cap**: a wild Pokémon above Lv 20 / 25 / 30 / 35 / 40 / 45 / 50 /
   55 (0-7 badges; any with 8) bounces your ball back;
-- the route list moves fishing without the rod, surfing without Water
-  Mode and Pokémon above your cap into its **"Requires ..."** lines;
+- the route list moves surfing without Water Mode (the Fishing Rod you
+  hold from the start) and Pokémon above your cap into its **"Requires ..."** lines;
 - in battle, a wild foe above your cap gets a red **"Too strong to catch"**
   under its stats.
 
@@ -190,7 +192,9 @@ scripts), only these.
 
 ## Evolutions you can get
 
-Turn on *Evolutions you can get*: a panel at the top middle listing every
+Set *Evolutions you can get* to on (or *overlay only*: shown while MCCP's
+overlay is open): a window, top middle at first — drag it to move, drag an
+edge to resize, both remembered — listing every
 Pokémon you don't have yet that one you've caught (the Pokédex checklist's
 balls) evolves into, and how — from the game's own evolution table: level,
 stone, trade, trade holding an item, friendship (day / night), a move it must

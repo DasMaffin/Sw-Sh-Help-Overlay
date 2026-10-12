@@ -116,11 +116,27 @@ local function toggle(key, value)
     SWSH.mod:set(key, out)
 end
 
--- Boxes: { key, value, label, x, y, w, h } in screen pixels, plus the X.
-local function editorLayout(sw, sh)
+-- Where it opens: left of MCCP's settings window (620 px, centred, and
+-- drawn over paint elements like this one -- in the middle it was hidden
+-- behind it), or where it was dragged to last time (progresspos.txt).
+local POS_FILE = "progresspos.txt"
+local saved
+do
+    local body = data and data.read and data.read(POS_FILE)
+    local a, b = (body or ""):match("^(-?[%d.]+)%s+(-?[%d.]+)")
+    if a then saved = { tonumber(a), tonumber(b) } end
+end
+local function editorHome(sw, sh)
     local u = U * sh / SWSH.REF_H
     local W, H = 58 * u, 39.6 * u
-    local x, y = (sw - W) / 2, (sh - H) / 2
+    if saved then return saved[1], saved[2], W, H end
+    return math.max(2 * u, sw / 2 - 310 - W - 2 * u), (sh - H) / 2, W, H
+end
+
+-- Boxes: { key, value, label, x, y, w, h } in screen pixels, plus the X.
+local function editorLayout(x, y)
+    local u = U * overlay.screenH() / SWSH.REF_H
+    local W, H = 58 * u, 39.6 * u
     local boxes = {}
     for i, b in ipairs(SWSH.BADGES) do
         local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
@@ -134,20 +150,29 @@ end
 local function hit(r, mx, my) return mx >= r[1] and mx < r[1] + r[3] and my >= r[2] and my < r[2] + r[4] end
 local function rectOf(b) return { b[4], b[5], b[6], b[7] } end
 
+local function at(self)
+    local hx, hy = editorHome(overlay.screenW(), overlay.screenH())
+    return (self and self.x) or hx, (self and self.y) or hy
+end
+
 overlay.add("swsh.progress", {
     mode = "pinned",
+    movable = true,
+    OnDragEnd = function(self)                 -- for the next run
+        if data and data.write then data.write(POS_FILE, ("%.0f %.0f"):format(self.x, self.y)) end
+    end,
     OnMouseDown = function(self, lx, ly, btn)
         if btn ~= 1 or not editorOpen() then return end
-        local L = editorLayout(overlay.screenW(), overlay.screenH())
-        local mx, my = lx + (self.x or 0), ly + (self.y or 0)
+        local L = editorLayout(at(self))
+        local mx, my = lx + L.x, ly + L.y
         if hit(L.close, mx, my) then SWSH.mod:set("progress_editor", false) return end
         for _, b in ipairs(L.boxes) do
             if hit(rectOf(b), mx, my) then toggle(b[1], b[2]) return end
         end
     end,
-    paint = function(d)
+    paint = function(d, self)
         if not editorOpen() then return end
-        local L = editorLayout(d:w(), d:h())
+        local L = editorLayout(at(self))
         local x, y, W, H, u = L.x, L.y, L.W, L.H, L.u
         local mx, my = overlay.mouseX and overlay.mouseX() or -1, overlay.mouseY and overlay.mouseY() or -1
         d:rect(x, y, W, H, 20, 22, 32, 240)
@@ -182,7 +207,6 @@ overlay.add("swsh.progress", {
 hook.Add("OverlayElement", "swsh.progressRegion", function(el)
     if el.id ~= "swsh.progress" then return end
     if not editorOpen() then el.hidden = true return end
-    local L = editorLayout(overlay.screenW(), overlay.screenH())
     el.hidden = false
-    el.x, el.y, el.w, el.h = L.x, L.y, L.W, L.H
+    el.x, el.y, el.w, el.h = editorHome(overlay.screenW(), overlay.screenH())
 end)
