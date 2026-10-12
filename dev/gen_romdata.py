@@ -322,3 +322,112 @@ SWSH.AREAS = {
 out = os.path.join(root, 'lua', 'autorun', '08_areas.lua')
 open(out, 'w', encoding='utf-8', newline='\n').write(hdr + '\n'.join(out_rows) + '\n}\n')
 print(len(out_rows), 'banner areas ->', out)
+
+# ------------------------------------------------------------- specials --
+# Gifts, in-game trades and fixed ("static") Pokemon, per banner name, like
+# pkmn_stats' FRLG specials. The game keeps their places in its scripts, so:
+#   gifts + statics: PKHeX's Encounters8.cs (species, level, location id,
+#     weather), with its SwSh location names -- both fetched into ROMs/pkhex/
+#     (see README), read here, not committed;
+#   trades: levels and wants from the game (specials.json), places by hand.
+# Story battles (ScriptedNoMarks) are left out, but not the legendaries.
+pk = os.path.join(root, 'ROMs', 'pkhex')
+SPECIES = {s['dex']: s['species'] for s in load('species.json')}
+FORM2 = {('Raichu', 1): 'Alolan', ('Sandshrew', 1): 'Alolan', ('Vulpix', 1): 'Alolan', ('Meowth', 1): 'Alolan',
+         ('Exeggutor', 1): 'Alolan', ('Marowak', 1): 'Alolan', ('Diglett', 1): 'Alolan', ('Meowth', 2): 'Galarian',
+         ('Keldeo', 1): 'Resolute', ('Indeedee', 1): 'Female', ('Lycanroc', 1): 'Midnight', ('Darmanitan', 2): 'Galarian',
+         ('Rotom', 1): 'Heat', ('Rotom', 2): 'Wash', ('Rotom', 3): 'Frost', ('Rotom', 4): 'Fan', ('Rotom', 5): 'Mow'}
+def spName(dex, form):
+    sp = SPECIES.get(dex, '#%d' % dex)
+    return '%s (%s)' % (sp, FORM2[(sp, form)]) if (sp, form) in FORM2 else name({'species': sp, 'form': form})
+WEATHER = {'Normal': 'clear', 'Overcast': 'cloudy', 'Raining': 'rain', 'Thunderstorm': 'storm',
+           'Intense_Sun': 'sun', 'Snowing': 'snow', 'Snowstorm': 'blizzard', 'Sandstorm': 'sand',
+           'Heavy_Fog': 'fog', 'Stormy': 'rain/storm', 'Icy': 'snow/blizzard'}
+BASE_WX = ['clear', 'cloudy', 'rain', 'storm', 'sun', 'snow', 'blizzard', 'sand', 'fog']
+def weatherText(w):
+    if not w or w.startswith('All'): return ''
+    if w == 'No_Sun_Sand': return 'not sun/sand'
+    got = {b for p in w.split('|') for b in WEATHER.get(p.strip(), p.strip()).split('/')}
+    if len(got) > len(BASE_WX) / 2:          # most of them: say which not
+        return 'not ' + '/'.join(b for b in BASE_WX if b not in got) if len(got) < len(BASE_WX) else ''
+    return '/'.join(b for b in BASE_WX if b in got)
+# A place inside another: listed under both banners.
+INSIDE = {'Battle Tower': ['Wyndon'], 'Master Dojo': ['Fields of Honor'], 'Wild Area Station': ['Rolling Fields']}
+GIFT_HOW = {'Grookey': 'Starter from Leon (choose one)', 'Scorbunny': 'Starter from Leon (choose one)',
+            'Sobble': 'Starter from Leon (choose one)', 'Charmander': "From Leon's house, once you're Champion",
+            'Type: Null': 'Gift at the Battle Tower, after the story', 'Toxel': 'From the Pokemon Nursery worker',
+            'Pikachu': "Gigantamax Pikachu, with a Let's Go Pikachu save", 'Eevee': "Gigantamax Eevee, with a Let's Go Eevee save",
+            'Dracozolt': 'Cara Liss restores it from two fossils', 'Arctozolt': 'Cara Liss restores it from two fossils',
+            'Dracovish': 'Cara Liss restores it from two fossils', 'Arctovish': 'Cara Liss restores it from two fossils',
+            'Bulbasaur': 'From Mustard (choose Bulbasaur or Squirtle)', 'Squirtle': 'From Mustard (choose Bulbasaur or Squirtle)',
+            'Kubfu': 'From Mustard', 'Glastrier': 'Choose Glastrier or Spectrier', 'Spectrier': 'Choose Glastrier or Spectrier',
+            'Cosmog': 'From a man in Freezington'}
+LEGEND = {144, 145, 146, 377, 378, 379, 486, 638, 639, 640, 647, 894, 895, 896, 897, 898}
+specials = defaultdict(list)          # banner -> [(key, name, tag, how, lv, ver)]
+def addSpecial(places, n, tag, how, lv, ver):
+    for p in places:
+        for b in [p] + INSIDE.get(p, []):
+            row = (key(n.split(' (')[0]), ascii(n), tag, how, lv, ver)
+            if row not in specials[b]: specials[b].append(row)
+
+if os.path.exists(os.path.join(pk, 'Encounters8.cs')):
+    locs = open(os.path.join(pk, 'text_swsh_00000_en.txt'), encoding='utf-8-sig').read().splitlines()
+    lst, gift = None, False
+    for line in open(os.path.join(pk, 'Encounters8.cs'), encoding='utf-8'):
+        m = re.search(r'readonly \S+ (\w+) =', line)
+        if m:
+            lst = m[1] if m[1].startswith('Static') else None
+            gift = lst == 'StaticSWSH'
+            continue
+        if '#region Static Part 1' in line: gift = False
+        if not lst or not re.match(r'\s*new\(', line): continue
+        f = lambda k: (re.search(r'\b%s\s*=\s*([^,}]+)' % k, line) or [None, None])[1]
+        dex, lv, loc = int(f('Species')), int(f('Level')), int(f('Location'))
+        if loc < 0 or (f('ScriptedNoMarks') and dex not in LEGEND and not gift): continue
+        cross = re.search(r'Crossover = new\(([^)]*)\)', line)
+        places = [locs[loc]] + ([locs[int(c)] for c in cross[1].split(',')] if cross else [])
+        n = spName(dex, int(f('Form') or 0))
+        ver = {'StaticSW': 'Sword', 'StaticSH': 'Shield'}.get(lst, '')
+        wm = re.search(r'Weather = ([\w| ]+)', line)
+        wx = weatherText(wm[1].strip() if wm else '')
+        if gift:
+            addSpecial(places, n, 'Gift', GIFT_HOW.get(n, 'Gift'), lv, ver)
+        else:
+            how = ('Legendary, fixed' if dex in LEGEND else 'Fixed overworld Pokemon') + (', weather: ' + wx if wx else '')
+            addSpecial(places, n, 'Static', how, lv, ver)
+else:
+    print('no ROMs/pkhex/Encounters8.cs: gifts and statics left out')
+
+# Trades: index in the game's table -> the trader's place. Regina's
+# regional-form trades (0-11) move around the Isle of Armor: left out.
+TRADE_AT = {12: 'Turffield', 13: 'Motostoke', 14: 'Hulbury', 15: 'Hammerlocke', 16: 'Stow-on-Side',
+            17: 'Stow-on-Side', 18: 'Ballonlea', 19: 'Circhester', 20: 'Circhester', 21: 'Spikemuth', 22: 'Wyndon'}
+TRADE_VER = {16: 'Sword', 17: 'Shield', 19: 'Sword', 20: 'Shield'}
+TRADE_WHERE = {12: 'Turffield Gym lobby', 13: 'Pokemon Center', 14: 'by the market', 15: 'outside the Vault',
+               16: 'on a rooftop', 17: 'on a rooftop', 18: 'Gym entrance hall', 21: 'end of town, behind a stall',
+               22: 'in a house'}
+for t in load('specials.json')['trades']:
+    if t['i'] not in TRADE_AT: continue
+    want = spName(next(d for d, s in SPECIES.items() if s == t['wants']), t['wants_form'])
+    where = TRADE_WHERE.get(t['i'])
+    addSpecial([TRADE_AT[t['i']]], spName(t['dex'], t['form']), 'Trade',
+               'Trade a %s for it' % ascii(want) + (' (%s)' % where if where else ''), t['level'], TRADE_VER.get(t['i'], ''))
+
+out_rows = []
+for b in sorted(specials):
+    out_rows.append('    [%s] = {\n%s },' % (lua(ascii(b)), ',\n'.join('        { %s, %s, %s, %s, %d, %s }' % (
+        lua(k), lua(n), lua(tag), lua(how), lv, lua(ver)) for k, n, tag, how, lv, ver in specials[b])))
+hdr = '''-- Gifts, in-game trades and fixed ("static") Pokemon by the name the game's
+-- area banner shows -- the route panel lists them under the wild ones, as
+-- pkmn_stats' FRLG specials. Generated by dev/gen_romdata.py (PKHeX's
+-- Encounters8 places for gifts and statics, trades' places by hand) -- don't
+-- edit by hand.
+--   [name] = { { key, "Name (form)", tag, how, level, version ("" = both) }, ... }
+
+SWSH = SWSH or {}
+
+SWSH.SPECIALS = {
+'''
+out = os.path.join(root, 'lua', 'autorun', '09_specials.lua')
+open(out, 'w', encoding='utf-8', newline='\n').write(hdr + '\n'.join(out_rows) + '\n}\n')
+print(len(out_rows), 'places with specials ->', out)

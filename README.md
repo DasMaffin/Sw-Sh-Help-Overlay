@@ -85,7 +85,14 @@ version you're playing:
   else it's met;
 - **clicking** a row opens its Bulbapedia page.
 
-Towns say "No wild Pokemon here". The area is remembered across restarts;
+Under a line come the **gifts, in-game trades and fixed Pokémon** of the
+place, for your version — the starters in Postwick, Toxel on Route 5, the
+fossils on Route 6, the trades (what they want, where the trader stands), the
+Wild Area's fixed strong Pokémon with the weather they need, legendaries —
+tagged Gift / Trade / Static with their level; hover for the details. Regina's
+regional-form trades are left out: she moves around the Isle of Armor.
+
+Places with nothing say "No wild Pokemon here". The area is remembered across restarts;
 the list steps aside during battles. Setting *Show route information*: on,
 off, or overlay only. Data: `lua/autorun/08_areas.lua`, from the game's own
 encounter tables (a zone's surfing and flying tables are under the name the
@@ -172,6 +179,13 @@ pkNX (`dev/pknx-export`, needs a clone of kwsch/pkNX and Oodle's
 dotnet run -c Release --project dev/pknx-export -- ROMs/out ROMs/export
 python3 dev/gen_romdata.py ROMs/export
 ```
+
+Gifts and fixed Pokémon (`09_specials.lua`) take their places from PKHeX's
+encounter tables, which the game itself keeps only in its scripts. Put these
+two files into `ROMs/pkhex/` before generating (without them, only trades are
+listed):
+[`Encounters8.cs`](https://github.com/kwsch/PKHeX/blob/master/PKHeX.Core/Legality/Encounters/Data/Gen8/Encounters8.cs)
+and [`text_swsh_00000_en.txt`](https://github.com/kwsch/PKHeX/blob/master/PKHeX.Core/Resources/text/locations/gen8/text_swsh_00000_en.txt).
 
 `ROMs/` (game files) is never committed.
 

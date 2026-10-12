@@ -142,4 +142,19 @@ object Wild(string file)
 Save("wild_sword.json", new { hidden = Wild("encount_k.bin"), symbol = Wild("encount_symbol_k.bin") });
 Save("wild_shield.json", new { hidden = Wild("encount_t.bin"), symbol = Wild("encount_symbol_t.bin") });
 Console.WriteLine("wilds written");
+
+// ------------------------------------------------- gifts, trades, statics --
+// In table order, without places: the game keeps those in its scripts, so
+// gen_romdata.py names each one's place by hand (as pkmn_stats' FRLG list).
+byte[] One(GameFile f) => rom.GetFile(f)[0];
+var gifts = FlatBufferConverter.DeserializeFrom<EncounterGiftArchive>(One(GameFile.EncounterTableGift)).Table
+    .Select((g, i) => new { i, species = At(species, g.Species), dex = g.Species, form = g.Form, level = g.Level, egg = g.IsEgg != 0, gmax = g.CanGigantamax }).ToArray();
+var trades = FlatBufferConverter.DeserializeFrom<EncounterTradeArchive>(One(GameFile.EncounterTableTrade)).Table
+    .Select((t, i) => new { i, species = At(species, t.Species), dex = t.Species, form = t.Form, level = t.Level,
+                            wants = At(species, t.RequiredSpecies), wants_form = t.RequiredForm, gmax = t.CanGigantamax }).ToArray();
+var statics = FlatBufferConverter.DeserializeFrom<EncounterStaticArchive>(One(GameFile.EncounterTableStatic)).Table
+    .Select((s, i) => new { i, species = At(species, s.Species), dex = s.Species, form = s.Form, level = s.Level,
+                            scenario = s.EncounterScenario.ToString(), gmax = s.CanGigantamax }).ToArray();
+Save("specials.json", new { gifts, trades, statics });
+Console.WriteLine($"{gifts.Length} gifts, {trades.Length} trades, {statics.Length} statics");
 return 0;

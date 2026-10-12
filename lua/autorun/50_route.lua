@@ -11,7 +11,7 @@
 -- Data: SWSH.AREAS (08_areas.lua) and SWSH.POKEDEX (07_pokedex.lua), from the
 -- game's files.
 
-local R = { name = nil, area = nil }    -- the banner's name, its SWSH.AREAS entry
+local R = { name = nil, area = nil, special = nil }   -- the banner's name, its SWSH.AREAS / SWSH.SPECIALS entries
 SWSH.route = R
 
 local FILE = "area.txt"                 -- where you were, across restarts
@@ -37,20 +37,26 @@ local function match(text)
     if #k < 3 then return nil end
     local max = #k >= 10 and 3 or 2
     local best, bestD, tie = nil, max + 1, false
-    for name in pairs(SWSH.AREAS or {}) do
-        local d = distance(k, fold(name))
-        if d < bestD then best, bestD, tie = name, d, false
-        elseif d == bestD then tie = true end
+    local seen = {}
+    for _, t in ipairs({ SWSH.AREAS or {}, SWSH.SPECIALS or {} }) do
+        for name in pairs(t) do
+            if not seen[name] then
+                seen[name] = true
+                local d = distance(k, fold(name))
+                if d < bestD then best, bestD, tie = name, d, false
+                elseif d == bestD then tie = true end
+            end
+        end
     end
     return not tie and best or nil
 end
 
 local function set(name, how)
     if name == R.name then return end
-    R.name, R.area = name, SWSH.AREAS[name]
+    R.name, R.area, R.special = name, SWSH.AREAS[name], (SWSH.SPECIALS or {})[name]
     if data and data.write and how ~= "remembered" then data.write(FILE, name) end
     SWSH.log(SWSH.LV.dialogue, SWSH.C.system, "[area] ", SWSH.C.text,
-             name .. (R.area and (" (" .. R.area.region .. ")") or " (no wild Pokemon)"))
+             name .. (R.area and (" (" .. R.area.region .. ")") or (R.special and "" or " (no wild Pokemon)")))
 end
 
 -- A name counts once it's read the same twice running (the banner slides in;
@@ -163,6 +169,7 @@ local U       = 6.75     -- 1080p pixels per unit, as the other panels
 local ROW_N   = 3.4
 local LIST_N  = 50       -- panel width, units: room for "Name  High-level area"
 local TOP_N   = 8.0      -- first row, under the two-line header
+local RULE_N  = 1.4      -- the line between wild and special rows
 local BALL_N  = 2.2
 local BALL_PAD = 0.7
 local MAX_ELSEWHERE = 7
@@ -181,25 +188,32 @@ end
 local function layout(screenH)
     if not R.name then return nil end
     local u = U * screenH / SWSH.REF_H
-    local rows, yy = {}, TOP_N
     local list = R.area and R.area[ver()] or {}
-    if #list == 0 then rows[1] = { kind = "none", y = yy, h = ROW_N }; yy = yy + ROW_N end
-    for _, e in ipairs(list) do
-        rows[#rows + 1] = { kind = "wild", e = e, y = yy, h = ROW_N }; yy = yy + ROW_N
+    -- Gifts, trades and fixed Pokemon of this version, under a rule (as FRLG's).
+    local sp = {}
+    for _, e in ipairs(R.special or {}) do
+        if e[6] == "" or e[6] == version() then sp[#sp + 1] = e end
     end
-    local W, H = LIST_N * u, (yy + 1.5) * u
     local x, y = 2 * u, 2 * u
-    -- A long list (the Wild Area's) scrolls off the bottom rather than
-    -- shrinking to nothing: cut it to what fits.
+    -- A long list (the Wild Area's) runs off the bottom rather than shrinking
+    -- to nothing: the longer of the two lists is cut to what fits, "+N more".
     local fit = math.floor((screenH - y - 2 * u - (TOP_N + 1.5) * u) / (ROW_N * u))
-    if #rows > fit then
-        local keep = fit - 1
-        for i = #rows, keep + 1, -1 do rows[i] = nil end
-        yy = TOP_N + keep * ROW_N
-        rows[#rows + 1] = { kind = "more", n = #list - keep, y = yy, h = ROW_N }
-        H = (yy + ROW_N + 1.5) * u
+    local nw, ns = #list, #sp
+    local function rowsFor(a, b) return math.max(a, 0) + (a < #list and 1 or 0) + (#list == 0 and #sp == 0 and 1 or 0)
+                                       + (b > 0 and (b + RULE_N / ROW_N + (b < #sp and 1 or 0)) or 0) end
+    while rowsFor(nw, ns) > fit and (nw > 0 or ns > 0) do
+        if nw >= ns then nw = nw - 1 else ns = ns - 1 end
     end
-    return x, y, W, H, u, rows
+    local rows, yy = {}, TOP_N
+    if #list == 0 and #sp == 0 then rows[1] = { kind = "none", y = yy, h = ROW_N }; yy = yy + ROW_N end
+    for i = 1, nw do rows[#rows + 1] = { kind = "wild", e = list[i], y = yy, h = ROW_N }; yy = yy + ROW_N end
+    if nw < #list then rows[#rows + 1] = { kind = "more", n = #list - nw, y = yy, h = ROW_N }; yy = yy + ROW_N end
+    if ns > 0 then
+        rows[#rows + 1] = { kind = "rule", y = yy, h = RULE_N }; yy = yy + RULE_N
+        for i = 1, ns do rows[#rows + 1] = { kind = "special", e = sp[i], y = yy, h = ROW_N }; yy = yy + ROW_N end
+        if ns < #sp then rows[#rows + 1] = { kind = "more", n = #sp - ns, y = yy, h = ROW_N }; yy = yy + ROW_N end
+    end
+    return x, y, LIST_N * u, (yy + 1.5) * u, u, rows
 end
 
 local function rowAt(rows, y, u, my)
@@ -268,13 +282,23 @@ overlay.add("swsh.route", {
 
         for i, row in ipairs(rows) do
             local ry = y + row.y * u
-            if hoverRow == i and row.kind == "wild" then
+            if hoverRow == i and (row.kind == "wild" or row.kind == "special") then
                 d:rect(x + 0.6 * u, ry - 0.4 * u, W - 1.2 * u, row.h * u, 58, 66, 92, 255)
             end
             if row.kind == "none" then
                 d:text(x + 1.4 * u, ry, "No wild Pokemon here", 1.8 * u, 150, 156, 175, 255)
             elseif row.kind == "more" then
                 d:text(x + 1.4 * u, ry, "+" .. row.n .. " more", 1.6 * u, 140, 146, 165, 255)
+            elseif row.kind == "rule" then
+                d:line(x + 1.4 * u, ry + 0.5 * u, x + W - 1.4 * u, ry + 0.5 * u, 90, 100, 130, 255)
+            elseif row.kind == "special" then
+                -- Name plus a short tag (Gift / Trade / Static); the rest on hover.
+                local e = row.e
+                local tag = e[3] .. " Lv" .. e[5]
+                local fit = math.floor((W - 2.8 * u - width(tag, 1.5 * u) - 1.0 * u) / (1.8 * u))
+                local name = #e[2] > fit and (e[2]:sub(1, math.max(1, fit - 2)) .. "..") or e[2]
+                d:text(x + 1.4 * u, ry, name, 1.8 * u, 215, 195, 245, 255)
+                rightText(d, x + W - 1.4 * u, ry + 0.2 * u, tag, 1.5 * u, 165, 150, 200)
             else
                 local top = row.e[3][1]
                 local st = style(top[1])
@@ -308,8 +332,27 @@ overlay.add("swsh.routeinfo", {
         local x, y, W, _, u, rows = layout(d:h())
         if not x then return end
         local row = rows[hoverRow]
-        if not row or row.kind ~= "wild" then return end
+        if not row then return end
         local fs = 1.6 * u
+        if row.kind == "special" then
+            local e = row.e
+            local lines = wrap(e[4], math.floor(42 / 1.6) - 2)
+            local pw, ph = 44 * u, (6.6 + #lines * 2.4) * u
+            local px, py = x + W + 0.8 * u, y + row.y * u - 1.0 * u
+            if px + pw > d:w() then px = x - pw - 0.8 * u end
+            if py + ph > d:h() then py = d:h() - ph - 2 end
+            if py < 2 then py = 2 end
+            d:rect(px, py, pw, ph, 18, 20, 30, 244)
+            d:outline(px, py, pw, ph, 150, 165, 205, 255)
+            d:text(px + 1.2 * u, py + 0.8 * u, e[2], fs, 235, 238, 248, 255)
+            d:text(px + 1.2 * u, py + 3.4 * u, e[3] .. (e[6] ~= "" and (" (" .. e[6] .. " only)") or ""), fs * 0.9, 215, 195, 245, 255)
+            rightText(d, px + pw - 1.2 * u, py + 3.4 * u, "Lv" .. e[5], fs * 0.9, 205, 205, 175)
+            for i, ln in ipairs(lines) do
+                d:text(px + 1.2 * u, py + (6.0 + (i - 1) * 2.4) * u, ln, fs * 0.9, 200, 206, 220, 255)
+            end
+            return
+        end
+        if row.kind ~= "wild" then return end
         local others, more = elsewhere(row.e[1], MAX_ELSEWHERE)
 
         local pw = (#others > 0 and 58 or 44) * u
@@ -389,6 +432,6 @@ hook.Add("OverlayElement", "swsh.routeRegion", function(el)
     hoverRow = nil
     if el.hovered then
         local i, row = rowAt(rows, y, u, overlay.mouseY())
-        if i and row.kind == "wild" then hoverRow = i end
+        if i and (row.kind == "wild" or row.kind == "special") then hoverRow = i end
     end
 end)

@@ -47,7 +47,13 @@
   its magenta CHROMA (V plane, rows after the luma: `frame:region(x,
   h + y/2, ...)`, U,V interleaved), read as kind "area" -> `SWSH.onArea` in
   `50_route.lua` (FRLG route panel port; data `08_areas.lua` keyed by banner
-  name). `SWSH.inBattle()` = battle box/menu seen in the last ~4 s.
+  name; a place's separate parts ("Route 2 (High Level)") are NEVER merged
+  into one rate -- each way keeps `per` part odds, as pkmn_stats' floors).
+  Gifts / trades / fixed Pokemon: `09_specials.lua` (same banner keys, listed
+  under a rule like FRLG's specials): gifts + statics from PKHeX's
+  Encounters8.cs + SwSh location names in `ROMs/pkhex/` (local, not
+  committed), trades' places by hand in gen_romdata (`TRADE_AT`).
+  `SWSH.inBattle()` = battle box/menu seen in the last ~4 s.
 - Caught marks: `SWSH.onCatchText` (40_battle, called from the reader's
   emit for every kind; phrases from the game's btl_std/btl_app/pokedex text --
   `pknx-export text <message dir> <out>` dumps all game text) and the owned
