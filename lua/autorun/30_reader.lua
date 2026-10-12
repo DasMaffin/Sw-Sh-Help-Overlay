@@ -203,16 +203,12 @@ local function setState(st, why)
     end
     SWSH.log(SWSH.LV.dialogue, SWSH.C.system, "[state] ", SWSH.C.text, st .. " (" .. why .. ")")
 end
--- How it starts: wild or Trainer, and who. A wild one above your badges'
--- catch level is "very strong-looking" (btl_std 509-514) -- the game's own
--- word on whether it can be caught, kept as S.foe.strong.
+-- How it starts: wild or Trainer, and who.
 local START = {
-    { "very strong%-looking (.-) appeared!", "wild", true },
-    { "very strong%-looking (.-) leaped out!", "wild", true },
-    { "You encountered a very strong%-looking (.-)!", "wild", true },
+    { "You encountered a very strong%-looking (.-)!", "wild" },
     { "You encountered a wild (.-)!", "wild" },
+    { "A very strong%-looking (.-) appeared!", "wild" },
     { "A wild (.-) appeared!", "wild" },
-    { "A wild (.-) leaped out!", "wild" },
     { "You are challenged by (.-)!", "trainer" },
     { "(.-) would like to battle!", "trainer" },
 }
@@ -247,9 +243,8 @@ local function battleText(lines)
     for _, p in ipairs(START) do
         local who = s:match(p[1])
         if who then
-            setState("battle", (p[3] and "a very strong-looking " or p[2] == "wild" and "a wild " or "Trainer ") .. who)
+            setState("battle", (p[2] == "wild" and "a wild " or "Trainer ") .. who)
             S.foe = { kind = p[2], name = who }
-            if p[2] == "wild" then S.foe.strong = p[3] == true end
             return
         end
     end
@@ -290,14 +285,6 @@ SWSH.onBattleStateText = battleText      -- for dev/sim.py's --say
 -- The battle under way: { kind = "wild" | "trainer", name } (nil when its
 -- opening line wasn't read), or nil outside one.
 function SWSH.battleState() return S.state == "battle" and (S.foe or {}) or nil end
--- Too strong to catch: the battle's opening line says so ("very
--- strong-looking"); without that line read, the badges' level cap
--- (48_progress) is the guess.
-function SWSH.tooStrong(lv)
-    local st = SWSH.battleState()
-    if st and st.strong ~= nil then return st.strong end
-    return lv ~= nil and SWSH.progress ~= nil and lv > SWSH.progress.cap()
-end
 -- The turn of the battle: 1 at its first battle menu, +1 at each menu that
 -- follows battle text (backing out of the bag or party adds none); nil
 -- outside a battle or before its first menu.

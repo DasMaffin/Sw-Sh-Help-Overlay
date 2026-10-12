@@ -230,9 +230,9 @@ local function odds(text)
     if not (foe and foe.dex and foe.lv) then res.msg = "The wild Pokemon's name and level aren't read yet" return res end
     local key = SWSH.dexKey(foe.dex[1])
     local P = SWSH.progress
-    if P and SWSH.tooStrong(foe.lv) then
+    if P and foe.lv > P.cap() then
         local n = P.needs(foe.lv)
-        res.msg = "Too strong to catch: needs " .. (n or 1) .. " badge" .. (n == 1 and "" or "s")
+        res.msg = "Too strong to catch: needs " .. n .. " badge" .. (n == 1 and "" or "s")
         return res
     end
     local data = SWSH.CATCH and SWSH.CATCH[key]

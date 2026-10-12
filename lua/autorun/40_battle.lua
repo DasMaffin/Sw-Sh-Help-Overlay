@@ -242,15 +242,6 @@ function SWSH.onPanels(got)
             SWSH.log(SWSH.LV.dialogue, SWSH.C.battle, side == "mine" and "[you] " or "[foe] ",
                      SWSH.C.text, (who.dex and who.dex[1] or who.name) .. " Lv." .. lv)
             resolve(who)
-            -- Above the cap the badges give, yet the game didn't call it "very
-            -- strong-looking": the game is right -- say so (badges missed?).
-            local st = SWSH.battleState and SWSH.battleState()
-            if side == "foe" and st and st.strong == false and SWSH.progress and lv > SWSH.progress.cap() then
-                SWSH.log(SWSH.LV.important, SWSH.C.system, "[progress] ", SWSH.C.text,
-                         "a wild Lv." .. lv .. " that isn't very strong-looking: catchable, though "
-                         .. SWSH.progress.badges() .. " badges cap at Lv" .. SWSH.progress.cap()
-                         .. " -- more badges than ticked?")
-            end
         end
         -- "8/23": the max HP is the HP stat, if it fits the level.
         local hp = tonumber((got[side .. ".hp"] or ""):match("/%s*(%d+)"))
@@ -323,7 +314,7 @@ local function drawPanel(d, side, s, px, py, scale)
     d:outline(x, y, w, h, 120, 130, 165, 255)
     d:rect(x, y, w, 5 * u, 40, 44, 60, 236)
     -- A wild one above your catch cap (48_progress): a ball would bounce back.
-    if side == "foe" and not B.trainer and who.lv and SWSH.progress and SWSH.tooStrong(who.lv) then
+    if side == "foe" and not B.trainer and who.lv and SWSH.progress and who.lv > SWSH.progress.cap() then
         local n = SWSH.progress.needs(who.lv)
         local by = y + h + 0.6 * u
         if not at.top then by = y - 4.0 * u end

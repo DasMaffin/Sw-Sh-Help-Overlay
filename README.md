@@ -180,14 +180,10 @@ What it's for:
 
 - the **catch cap**: a wild Pokémon above Lv 20 / 25 / 30 / 35 / 40 / 45 / 50 /
   55 (0-7 badges; any with 8) bounces your ball back;
-- the route list moves surfing without Water Mode and Pokémon above your
-  cap into its **"Requires ..."** lines;
-- in battle, the game's own opening line decides: "You encountered a **very
-  strong-looking** …!" gets a red **"Too strong to catch"** under its stats
-  (and in the catch odds); a plain "wild …" is catchable whatever the cap
-  says — and if its level is above your ticked badges' cap, the console says
-  so (`[progress] … more badges than ticked?`). Without the opening line
-  read, the cap decides.
+- the route list moves fishing without the rod, surfing without Water
+  Mode and Pokémon above your cap into its **"Requires ..."** lines;
+- in battle, a wild foe above your cap gets a red **"Too strong to catch"**
+  under its stats.
 
 The game files don't say when an area itself is reachable (that's in its map
 scripts), only these.
