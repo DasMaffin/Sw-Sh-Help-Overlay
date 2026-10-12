@@ -86,8 +86,9 @@ version you're playing:
   weather it needs, and each part of the place with its own odds — and where
   else it's met;
 - **clicking** a row opens its Bulbapedia page;
-- what you surely can't meet yet sits in one line instead, **"Requires
-  Fishing Rod"** / **"Requires Water Mode"** (see Story progress); hover it
+- what you surely can't get yet sits in one line instead, **"Requires
+  Fishing Rod"** / **"Requires Water Mode"** / **"Requires 2 Badges"** (too
+  strong to catch yet, fixed Pokémon included; see Story progress); hover it
   for those Pokémon with their way, odds and levels. One met both ways is in
   both lists. Once you have the item, the line goes and they're back in the
   list. (A high-level area that may be out of reach stays in the list: the
@@ -127,9 +128,8 @@ What it's for:
 
 - the **catch cap**: a wild Pokémon above Lv 20 / 25 / 30 / 35 / 40 / 45 / 50 /
   55 (0-7 badges; any with 8) bounces your ball back;
-- the route list moves fishing without the rod and surfing without Water
-  Mode into its **"Requires ..."** lines, and **dims** Pokémon above your cap
-  (its hover says why: "needs 4 badges to catch");
+- the route list moves fishing without the rod, surfing without Water
+  Mode and Pokémon above your cap into its **"Requires ..."** lines;
 - in battle, a wild foe above your cap gets a red **"Too strong to catch"**
   under its stats.
 

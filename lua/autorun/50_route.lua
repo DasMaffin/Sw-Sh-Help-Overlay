@@ -204,16 +204,25 @@ local function visible()
     return true
 end
 
--- The key item a way surely needs and you surely lack (48_progress), or nil.
--- Those ways leave the list for a "Requires ..." group; a part of a place
--- you may not reach yet (a high-level area) can't be told, so it stays.
+-- What a way surely needs and you surely lack (48_progress), or nil: the
+-- Fishing Rod, Water Mode, or the badges to catch at its lowest level (key
+-- "b<N>"). Those leave the list for a "Requires ..." group; a part of a place
+-- you may not reach yet (a high-level area) can't be told, so reaching it
+-- isn't -- only catching it is.
 local REQUIRES = { ["Fishing Rod"] = "Requires Fishing Rod", ["Water Mode"] = "Requires Water Mode" }
 local REQ_LONG = { ["Fishing Rod"] = "Requires the Fishing Rod", ["Water Mode"] = "Requires the bike's Water Mode" }
-local function lacks(how)
+local function reqLabel(need, long)
+    local n = tonumber(need:match("^b(%d+)$"))
+    if n then return "Requires " .. n .. (n == 1 and " Badge" or " Badges") .. (long and " to catch" or "") end
+    return (long and REQ_LONG or REQUIRES)[need]
+end
+local function reqRank(need) return need == "Fishing Rod" and 0 or need == "Water Mode" and 1 or 10 + tonumber(need:sub(2)) end
+local function lacks(how, lo)
     local P = SWSH.progress
     if not P then return nil end
     if how == "fishing" and not P.hasRod() then return "Fishing Rod" end
     if (how == "surfing" or how == "Sharpedo spots") and not P.hasWater() then return "Water Mode" end
+    if lo and lo > P.cap() then return "b" .. P.needs(lo) end
 end
 
 -- One flat list of rows, so drawing and hit-testing agree: { x, y, W, H, u,
@@ -229,7 +238,7 @@ local function layout(screenH)
         if keep(e[1]) then
             local open, shut = {}, {}
             for _, w in ipairs(e[3]) do
-                local need = lacks(w[1])
+                local need = lacks(w[1], w[3])
                 if need then
                     shut[need] = shut[need] or {}
                     table.insert(shut[need], w)
@@ -244,17 +253,26 @@ local function layout(screenH)
             end
         end
     end
-    table.sort(order)
-    -- Gifts, trades and fixed Pokemon of this version, under a rule (as FRLG's).
+    -- Gifts, trades and fixed Pokemon of this version, under a rule (as FRLG's);
+    -- a fixed one above your catch cap joins its badge group.
     local sp = {}
     for _, e in ipairs(R.special or {}) do
-        if (e[6] == "" or e[6] == version()) and keep(e[1]) then sp[#sp + 1] = e end
+        if (e[6] == "" or e[6] == version()) and keep(e[1]) then
+            local need = e[3] == "Static" and lacks(nil, e[5])
+            if need then
+                if not groups[need] then groups[need] = {}; order[#order + 1] = need end
+                table.insert(groups[need], { e[1], e[2], { { "fixed (" .. e[3]:lower() .. ")", nil, e[5], e[5] } }, static = true })
+            else
+                sp[#sp + 1] = e
+            end
+        end
     end
+    table.sort(order, function(a, b) return reqRank(a) < reqRank(b) end)
 
     local all = {}
     for _, e in ipairs(wild) do all[#all + 1] = { kind = "wild", e = e, h = ROW_N } end
     for _, need in ipairs(order) do
-        all[#all + 1] = { kind = "req", label = REQUIRES[need], long = REQ_LONG[need], list = groups[need], h = ROW_N }
+        all[#all + 1] = { kind = "req", label = reqLabel(need), long = reqLabel(need, true), list = groups[need], h = ROW_N }
     end
     if #sp > 0 then
         if #all > 0 then all[#all + 1] = { kind = "rule", h = RULE_N } end
@@ -477,7 +495,8 @@ overlay.add("swsh.routeinfo", {
         if row.kind == "req" then
             -- The Pokemon that need it: each with its way, odds and levels.
             local pw = 52 * u
-            local hint = wrap("Have it already? Tick it in the progress editor (the mod's settings).",
+            local hint = wrap((row.long:find("Badge") and "Have them already? Tick them" or "Have it already? Tick it")
+                              .. " in the progress editor (the mod's settings).",
                               math.floor((pw - 2.4 * u) / (fs * 0.85)))
             local ph = (4.4 + #row.list * 2.4 + 0.6 + #hint * 2.0) * u
             local px, py = card(d, L, row, pw, ph)
@@ -489,7 +508,7 @@ overlay.add("swsh.routeinfo", {
                 local c = st.c
                 d:text(px + 1.2 * u, ry, e[2], fs * 0.95, 218, 224, 238, 255)
                 d:text(px + 19.0 * u, ry, w[1], fs * 0.9, c[1], c[2], c[3], 255)
-                rightText(d, px + pw - 13.0 * u, ry, pct(w), fs * 0.9, c[1], c[2], c[3])
+                if not e.static then rightText(d, px + pw - 13.0 * u, ry, pct(w), fs * 0.9, c[1], c[2], c[3]) end
                 rightText(d, px + pw - 1.2 * u, ry, lvText(w), fs * 0.9, 205, 205, 175)
                 ry = ry + 2.4 * u
             end
