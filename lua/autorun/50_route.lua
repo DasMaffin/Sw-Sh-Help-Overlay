@@ -119,6 +119,24 @@ end
 
 local function version() return game.isActive("pkmn_shield") and "Shield" or "Sword" end
 local function ver() return game.isActive("pkmn_shield") and "sh" or "sw" end
+-- A way's odds: one number, or "2-50%" when the place's parts differ (as
+-- pkmn_stats' floors). Its parts, w[7], each keep their own.
+local function pct(w) return (w[6] and w[6] < w[2]) and (w[6] .. "-" .. w[2] .. "%") or (w[2] .. "%") end
+
+-- The separate part of the place a species is ONLY met in ("High Level"),
+-- nil when it's met in the place itself.
+local function onlyPart(e)
+    local label
+    for _, w in ipairs(e[3]) do
+        if not w[7] then return nil end
+        for _, f in ipairs(w[7]) do
+            if f[1] == R.name then return nil end
+            label = label or f[1]
+        end
+    end
+    return label
+end
+
 local function lvText(w) return w[3] == w[4] and ("Lv" .. w[3]) or ("Lv" .. w[3] .. "-" .. w[4]) end
 
 -- Everywhere else a species is met in this version (SWSH.POKEDEX's places),
@@ -143,7 +161,7 @@ end
 ------------------------------------------------------------------ layout --
 local U       = 6.75     -- 1080p pixels per unit, as the other panels
 local ROW_N   = 3.4
-local LIST_N  = 44       -- panel width, units
+local LIST_N  = 50       -- panel width, units: room for "Name  High-level area"
 local TOP_N   = 8.0      -- first row, under the two-line header
 local BALL_N  = 2.2
 local BALL_PAD = 0.7
@@ -193,8 +211,8 @@ end
 
 local function ballRect(x, y, W, u, row)
     if row.kind ~= "wild" then return nil end
-    local pct = row.e[3][1][2] .. "%"
-    local bx = x + W - 1.4 * u - width(pct, 1.8 * u) - BALL_PAD * u - BALL_N * u
+    local txt = pct(row.e[3][1])
+    local bx = x + W - 1.4 * u - width(txt, 1.8 * u) - BALL_PAD * u - BALL_N * u
     return bx, y + row.y * u - 0.2 * u, BALL_N * u, BALL_N * u
 end
 
@@ -261,9 +279,20 @@ overlay.add("swsh.route", {
                 local top = row.e[3][1]
                 local st = style(top[1])
                 local c = st.c
-                d:text(x + 1.4 * u, ry, row.e[2], 1.8 * u, c[1], c[2], c[3], 255)
-                rightText(d, x + W - 1.4 * u, ry, top[2] .. "%", 1.8 * u, c[1], c[2], c[3])
+                -- The name, and the part of the place it's only met in, stop
+                -- short of the icon, ball and odds: a long one is cut.
                 local bx, by, bw = ballRect(x, y, W, u, row)
+                local room = bx - (st.icon and 2.8 or 0.8) * u - (x + 1.4 * u)
+                local only = onlyPart(row.e)
+                if only then room = room - (#only * 1.15 + 1.0) * u end
+                local name, fit = row.e[2], math.floor(room / (1.8 * u))
+                if #name > fit then name = name:sub(1, math.max(1, fit - 2)) .. ".." end
+                d:text(x + 1.4 * u, ry, name, 1.8 * u, c[1], c[2], c[3], 255)
+                if only then
+                    d:text(x + 1.4 * u + #name * 1.8 * u + 1.0 * u, ry + 0.5 * u, only,
+                           1.15 * u, 225, 190, 120, 255)
+                end
+                rightText(d, x + W - 1.4 * u, ry, pct(top), 1.8 * u, c[1], c[2], c[3])
                 SWSH.drawBall(d, bx, by, bw, SWSH.caught.has(row.e[1]))
                 if st.icon then icon(d, st.icon, bx - 2.4 * u, ry + 0.2 * u, 1.7 * u, c[1], c[2], c[3]) end
             end
@@ -285,7 +314,9 @@ overlay.add("swsh.routeinfo", {
 
         local pw = (#others > 0 and 58 or 44) * u
         local ph = 4.2
-        for _, w in ipairs(row.e[3]) do ph = ph + 2.8 + (w[5] ~= "" and 2.2 or 0) end
+        for _, w in ipairs(row.e[3]) do
+            ph = ph + 2.8 + (w[5] ~= "" and 2.2 or 0) + (w[7] and #w[7] * 2.2 or 0)
+        end
         if #others > 0 then ph = ph + 3.0 + #others * 4.4 + (more > 0 and 2.4 or 0) + 1.4 end
         ph = ph * u
 
@@ -297,19 +328,29 @@ overlay.add("swsh.routeinfo", {
         d:outline(px, py, pw, ph, 150, 165, 205, 255)
         d:text(px + 1.2 * u, py + 0.8 * u, row.e[2], fs, 235, 238, 248, 255)
 
-        -- One way of meeting it: icon, how, rate, levels; the weather it
-        -- needs under it.
+        -- One way of meeting it: icon, how, rate, levels; under it the weather
+        -- it needs, then each part of the place with its own odds -- the
+        -- banner can't say which part you're in, so this does.
         local ry = py + 3.9 * u
         for _, w in ipairs(row.e[3]) do
             local st = style(w[1])
             local c, ix = st.c, px + 1.2 * u
             if st.icon then icon(d, st.icon, ix, ry + 0.2 * u, fs * 0.9, c[1], c[2], c[3]); ix = ix + fs * 1.5 end
             d:text(ix, ry, w[1], fs, c[1], c[2], c[3], 255)
-            rightText(d, px + pw - 14.0 * u, ry, w[2] .. "%", fs, c[1], c[2], c[3])
+            rightText(d, px + pw - 14.0 * u, ry, pct(w), fs, c[1], c[2], c[3])
             rightText(d, px + pw - 1.2 * u, ry, lvText(w), fs, 205, 205, 175)
             ry = ry + 2.8 * u
             if w[5] ~= "" then
                 d:text(px + 3.4 * u, ry - 0.6 * u, "weather: " .. w[5], fs * 0.9, 170, 178, 200, 255)
+                ry = ry + 2.2 * u
+            end
+            for _, f in ipairs(w[7] or {}) do
+                local own = f[1] == R.name
+                local cr, cg, cb = 170, 178, 200
+                if not own then cr, cg, cb = 225, 190, 120 end
+                d:text(px + 3.4 * u, ry - 0.6 * u, f[1] .. (f[5] ~= "" and (" (" .. f[5] .. ")") or ""), fs * 0.9, cr, cg, cb, 255)
+                rightText(d, px + pw - 14.0 * u, ry - 0.6 * u, f[2] .. "%", fs * 0.9, cr, cg, cb)
+                rightText(d, px + pw - 1.2 * u, ry - 0.6 * u, lvText({ nil, nil, f[3], f[4] }), fs * 0.9, 175, 175, 155)
                 ry = ry + 2.2 * u
             end
         end

@@ -96,6 +96,7 @@ HOW = {'Surfing': 'surfing', 'Surfing - River': 'surfing', 'Surfing - Ocean': 's
        'Flying': 'flying', 'Ground': 'overworld', '2': 'overworld', '3': 'overworld',
        'Puddles': 'puddles', 'Beach': 'beach', 'Sharpedo': 'Sharpedo spots',
        'Garbage': 'overworld', 'Lunatone/Solrock': 'overworld'}
+SPOTS = {'Garbage', 'Lunatone/Solrock'}
 WILD_AREA = {"Rolling Fields", "Dappled Grove", "Watchtower Ruins", "East Lake Axewell",
              "West Lake Axewell", "Axew's Eye", "South Lake Miloch", "Giant's Seat",
              "North Lake Miloch", "Motostoke Riverbank", "Bridge Field", "Stony Wilderness",
@@ -116,7 +117,8 @@ def place(zone, kind):
     how = 'overworld' if kind == 'symbol' else 'grass (!)'
     m = re.match(r'^(.*?) \(([^()]*)\)$', zone)
     if m and m[2] in HOW:
-        zone, how = m[1], HOW[m[2]] if kind == 'symbol' else how
+        # A special spot keeps its name: the panel shows it as where in the place.
+        zone, how = m[1] if m[2] not in SPOTS else zone, HOW[m[2]] if kind == 'symbol' else how
     return zone, how
 
 order, rows = [], defaultdict(dict)     # (area, how, mon) -> version -> info
@@ -230,7 +232,15 @@ print(len(out_rows), 'species ->', out)
 # everything met there in each version: per species its ways -- how, best
 # rate, levels, weather. A zone counts under its own name and under the place
 # its parentheses name ("Route 9 (in Circhester Bay)": Route 9 AND Circhester
-# Bay); "Dusty Bowl and Giant's Mirror" under both.
+# Bay); "Dusty Bowl and Giant's Mirror" under both. Any other parentheses
+# name a separate part of the place ("Route 2 (High Level)"), kept with each
+# way so the panel can say so.
+PARTS = {'High Level': 'High-level area', 'Low Level': 'Low-level area', 'Near Station': 'Near the station',
+         'Garbage': 'Garbage area', 'Lunatone/Solrock': 'Lunatone/Solrock spot'}
+def part(area):
+    m = re.match(r"^.*? \((?!in |on )(.*)\)$", area)
+    return PARTS.get(m[1], m[1]) if m else ''
+
 def banners(area):
     m = re.match(r"^(?:City|Town) of (.*)$", area)
     if m: return [m[1]]
@@ -247,7 +257,7 @@ for (a, h, n), v in rows.items():
         bseen[b] |= seen[a]
         bregion.setdefault(b, region(a))
         for ver, r in v.items():
-            w = ways[b][ver][n].setdefault(h, {'lv': [99, 0], 'rate': 0, 'wx': set()})
+            w = ways[b][ver][n].setdefault((h, part(a)), {'lv': [99, 0], 'rate': 0, 'wx': set()})
             w['lv'] = [min(w['lv'][0], r['lv'][0]), max(w['lv'][1], r['lv'][1])]
             w['rate'] = max(w['rate'], r['rate'][1])
             w['wx'] |= r['wx']
@@ -260,25 +270,50 @@ def wxText(wx, seen):
     return '/'.join(names)
 
 out_rows = []
+# Like pkmn_stats' FRLG floors: a way (grass, fishing...) is one row, but a
+# place's separate parts ("Route 2 (High Level)") keep their own odds and
+# levels in `per` -- never one number for both: Zigzagoon is 2% on Route 2
+# and 50% in its high-level part. p is the best part, pLo the worst.
+def wayLua(b, h, parts):
+    parts = sorted(parts, key=lambda pw: (pw[0] != '', -pw[1]['rate']))   # the place itself first
+    rates = [w['rate'] for _, w in parts]
+    lo, hi = min(w['lv'][0] for _, w in parts), max(w['lv'][1] for _, w in parts)
+    wx = set().union(*(w['wx'] for _, w in parts))
+    out = '{ %s, %d, %d, %d, %s, %d' % (lua(h), max(rates), lo, hi, lua(wxText(wx, bseen[b])), min(rates))
+    if any(pt for pt, _ in parts):
+        out += ', { %s }' % ', '.join('{ %s, %d, %d, %d, %s }' % (
+            lua(pt or b), w['rate'], w['lv'][0], w['lv'][1], lua(wxText(w['wx'], bseen[b]))) for pt, w in parts)
+    return out + ' }'
+
 for b in sorted(ways, key=lambda b: (order.index(next(a for a in order if b in banners(a))), b)):
     parts = ['region = %s' % lua(bregion[b])]
     for ver, tag in (('Sword', 'sw'), ('Shield', 'sh')):
         mons = []
         for n, hows in ways[b][ver].items():
-            ws = sorted(hows.items(), key=lambda kv: -kv[1]['rate'])
-            mons.append((max(w['rate'] for _, w in ws), n, ws))
-        mons.sort(key=lambda m: (-m[0], m[1]))
+            byHow = defaultdict(list)
+            for (h, pt), w in hows.items(): byHow[h].append((pt, w))
+            # Order: met in the place itself first, then best rate there.
+            ws = sorted(byHow.items(), key=lambda kv: (
+                -max([w['rate'] for pt, w in kv[1] if not pt] or [-1]), -max(w['rate'] for _, w in kv[1])))
+            only = all(pt for _, ps in ws for pt, _ in ps)       # only in a separate part: listed last
+            best = max([w['rate'] for _, ps in ws for pt, w in ps if not pt] or [w['rate'] for _, ps in ws for _, w in ps])
+            mons.append((only, best, n, ws))
+        mons.sort(key=lambda m: (m[0], -m[1], m[2]))
         parts.append('%s = {\n%s }' % (tag, ',\n'.join('        { %s, %s, { %s } }' % (
             lua(key(n.split(' (')[0])), lua(ascii(n)),
-            ', '.join('{ %s, %d, %d, %d, %s }' % (lua(h), w['rate'], w['lv'][0], w['lv'][1], lua(wxText(w['wx'], bseen[b])))
-                      for h, w in ws)) for _, n, ws in mons)))
+            ', '.join(wayLua(b, h, ps) for h, ps in ws)) for _, _, n, ws in mons)))
     out_rows.append('    [%s] = { %s },' % (lua(ascii(b)), ',\n      '.join(parts)))
 hdr = '''-- What is met where, by the name the game's area banner shows ("Rolling
 -- Fields", "Route 9"): per version, each species with its ways of meeting it
--- there, best rate first. From the game's own encounter tables; generated by
--- dev/gen_romdata.py -- don't edit by hand.
---   [name] = { region, sw = { { key, "Name (form)", { { how, rate %, lo, hi, weather }, ... } }, ... }, sh = ... }
+-- there, the place's own first. From the game's own encounter tables;
+-- generated by dev/gen_romdata.py -- don't edit by hand.
+--   [name] = { region, sw = { { key, "Name (form)", { way, ... } }, ... }, sh = ... }
+--   way = { how, p, lo, hi, weather, pLo[, per] }
+-- p / pLo: best / worst rate over the place's parts (equal without parts).
 -- weather: "" = any; else the ones it needs ("rain/storm") or "not fog".
+-- per: only when the place has separate parts, like pkmn_stats' floors --
+--   { { part, rate, lo, hi, weather }, ... }, part = the place's own name
+--   for the place itself, else "High-level area", "Near the station"...
 
 SWSH = SWSH or {}
 

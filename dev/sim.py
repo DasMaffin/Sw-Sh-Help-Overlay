@@ -176,13 +176,14 @@ def render(path, ops, outdir):
 
 
 def main():
-    args, say, read_all, png, dex, hover = sys.argv[1:], [], False, None, False, None
+    args, say, read_all, png, dex, hover, area = sys.argv[1:], [], False, None, False, None, None
     while args and args[0].startswith("--"):
         a = args.pop(0)
         if a == "--all": read_all = True
         elif a == "--say": say.append(args.pop(0))
         elif a == "--png": png = args.pop(0)
         elif a == "--dex": dex = True
+        elif a == "--area": area = args.pop(0)
         elif a == "--hover": hover = [float(v) for v in args.pop(0).split(",")]
     paths = args or sorted(p for p in glob.glob(os.path.join(ROOT, "dev", "samples", "*.*"))
                                    if not p.endswith(".txt"))
@@ -203,6 +204,8 @@ def main():
         L.globals().overlay.mouse = L.table(*hover)
         for el in ("swsh.dex", "swsh.route"):
             L.globals().overlay.elements[el].hovered = True
+    if area:                                              # as if its banner was read (twice)
+        for _ in range(2): L.globals().SWSH.onArea(area, "")
     for line in say:
         print("== say:", line)
         L.globals().SWSH.onBattleText(L.table(line))

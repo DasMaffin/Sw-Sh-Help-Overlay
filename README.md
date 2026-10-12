@@ -75,16 +75,22 @@ version you're playing:
 
 - each species, coloured by its best way of meeting it (green on land, blue
   on water; a wave for surfing, a rod for fishing, a tree for shaking trees)
-  with its best rate, and the ball (click: caught);
-- **hovering** a row: every way it's met here — how, rate, levels, and the
-  weather it needs — and where else it's met;
+  with its rate, and the ball (click: caught);
+- a place's separate parts are never merged into one number, like FRLG's
+  floors: Zigzagoon on Route 2 is 2% there and 50% in its high-level area, so
+  the row says "2-50%". One met **only** in such a part is listed last with it
+  named ("Gossifleur *High-level area*");
+- **hovering** a row: every way it's met here — how, rate, levels, the
+  weather it needs, and each part of the place with its own odds — and where
+  else it's met;
 - **clicking** a row opens its Bulbapedia page.
 
 Towns say "No wild Pokemon here". The area is remembered across restarts;
 the list steps aside during battles. Setting *Show route information*: on,
 off, or overlay only. Data: `lua/autorun/08_areas.lua`, from the game's own
-encounter tables (a zone's surfing, flying and sub-areas are under the name
-the banner shows).
+encounter tables (a zone's surfing and flying tables are under the name the
+banner shows; its separate parts — high-level area, near the station, ... —
+keep their own odds).
 
 ## Pokédex checklist
 
@@ -151,6 +157,7 @@ python3 dev/sim.py dev/samples/hop_1.webp
 python3 dev/sim.py --png out --say "Go! Scorbunny!" dev/samples/battle_moves.webp
 python3 dev/sim.py --png out --dex --hover 1600,300 dev/samples/battle_moves.webp
 python3 dev/sim.py --png out --hover 100,175 dev/samples/area_rolling_fields.webp
+python3 dev/sim.py --png out --area "Route 2" --hover 60,368 dev/samples/hop_1.webp
 ```
 
 [docs/wild.md](docs/wild.md) lists the wild Pokémon of every area — how
