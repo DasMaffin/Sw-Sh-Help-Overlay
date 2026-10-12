@@ -108,6 +108,23 @@ local function foeBar(frame, sx, sy)
     local fill = x0 - left + n
     return math.max(0, (fill - 3) / w), math.min(1, (fill + 3) / w)
 end
+-- "male", "female" or nil (no sign: genderless, or not readable) for one
+-- HP panel, by its sign's colour: blue (high U) or red (high V).
+local function gender(frame, g, sx, sy)
+    local x0 = math.floor(g.x0 * sx / 2) * 2
+    local w = math.floor((g.x1 - g.x0) * sx / 2) * 2
+    local blue, red = 0, 0
+    for _, y in ipairs(g.rows) do
+        local s = frame:region(x0, frame:height() + math.floor(y * sy / 2), w, 1)
+        for i = 1, #s - 1, 2 do
+            local u, v = s:byte(i), s:byte(i + 1)
+            if u >= 165 and v <= 120 then blue = blue + 1
+            elseif v >= 180 and u <= 140 then red = red + 1 end
+        end
+    end
+    if blue >= 3 and red < 2 then return "male" end
+    if red >= 3 and blue < 2 then return "female" end
+end
 local function sysOpen(frame, sx, sy)     -- mid-dark grey and flat
     local lo, hi = probeRange(frame, SWSH.SYS.ground, sx, sy)
     return hi <= 90 and lo >= 25 and hi - lo <= 25
@@ -287,6 +304,8 @@ function SWSH.mod:OnFrame(frame)
     if S.menu then
         local lo, hi = foeBar(frame, sx, sy)
         if lo then S.foeBar = { lo = lo, hi = hi } end
+        S.gender = { mine = gender(frame, SWSH.GENDER.mine, sx, sy),
+                     foe = gender(frame, SWSH.GENDER.foe, sx, sy) }
     end
     if gameMenu(frame, sx, sy) then S.gameMenuFrame = frameNo end
     local kind, regions, ball = nil, {}, false

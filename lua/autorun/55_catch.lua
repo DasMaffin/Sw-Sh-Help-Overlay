@@ -141,8 +141,13 @@ local BALLS = {
         return list(1, 2, 4, 8), "your level not read"
     end },
     loveball    = { "Love Ball", function(c)
-        if c.same then return list(1, 8), "x8 if the other gender" end
-        return list(1), "not your species"
+        if not c.same then return list(1), "not your species" end
+        local a, b = c.myGender, c.foeGender
+        if a and b then
+            if a ~= b then return list(8), "same species, " .. a .. " vs " .. b .. " x8" end
+            return list(1), "same gender"
+        end
+        return list(1, 8), "x8 if the other gender (not read)"
     end },
     moonball    = { "Moon Ball", function(c)
         if c.moon then return list(4), "Moon Stone line x4" end
@@ -242,7 +247,9 @@ local function odds(text)
         lv = foe.lv, mylv = mine and mine.lv, types = foe.dex[2], spe = foe.dex[8],
         turn = SWSH.battleTurn and SWSH.battleTurn(), status = foeStatus(),
         caught = SWSH.caught and SWSH.caught.has(key), same = mine and mine.dex == foe.dex,
-        moon = isMoon(key), water = water, fishing = fishing, cave = cave,
+        moon = isMoon(key),
+        myGender = SWSH.state and SWSH.state.gender and SWSH.state.gender.mine,
+        foeGender = SWSH.state and SWSH.state.gender and SWSH.state.gender.foe, water = water, fishing = fishing, cave = cave,
         night = hour ~= nil and (hour >= 19 or hour < 5),
     }
     local Bs, why = { 1 }, nil
@@ -266,6 +273,8 @@ local function odds(text)
         elseif ctx.mylv < foe.lv then Ds = { 410 / 4096 } end
     end
     local crit = dexMult(SWSH.caught and SWSH.caught.count and SWSH.caught.count() or 0)
+    local charm = P and P.hasCharm and P.hasCharm()
+    if charm then crit = crit * 2 end
     local lo, hi = 1, 0
     for M = Mlo, Mhi do
         local Hlo = math.max(1, math.floor(fLo * M))
@@ -286,6 +295,7 @@ local function odds(text)
     if ctx.status then n[#n + 1] = ctx.status .. " x" .. S end
     if L > 1 then n[#n + 1] = ("low level x%.1f"):format(L) end
     if Ds[#Ds] < 1 then n[#n + 1] = #Ds == 1 and "yours is lower level x0.1" or "x0.1 if yours is lower level" end
+    if charm then n[#n + 1] = "Catching Charm" end
     n[#n + 1] = "catch rate " .. C
     return res
 end

@@ -91,4 +91,6 @@
   `S.foeBar`; turns (`SWSH.battleTurn()`, menu after battle text);
   `SWSH.onStatusText` (wild foe status lines). Data `09_catch.lua`
   (catch rate, weight) from pknx-export's forms.json via gen_romdata.
+  Genders: `SWSH.GENDER` sign chroma (blue/red) -> `S.gender.mine/foe`
+  (Love Ball). Catching Charm = key item (`P.hasCharm()`), doubles crits.
   The formula is the game's code (not in pkNX/PKHeX): Gen 8 per Dragonfly Cave.

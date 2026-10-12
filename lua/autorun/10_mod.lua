@@ -63,7 +63,7 @@ SWSH.mod:addSetting("evolutions", "Evolutions you can get", "bool", nil, false)
 -- Story progress (48_progress.lua): ticked from the game's text, fixable here.
 SWSH.mod:addSetting("badges", "Gym Badges you hold", "multi",
                     { "Grass", "Water", "Fire", "Fighting", "Ghost", "Fairy", "Rock", "Ice", "Dark", "Dragon" })
-SWSH.mod:addSetting("key_items", "Key items you have", "multi", { "Fishing Rod", "Rotom Bike Water Mode" })
+SWSH.mod:addSetting("key_items", "Key items you have", "multi", { "Fishing Rod", "Rotom Bike Water Mode", "Catching Charm" })
 -- A panel to tick both by click, for when a read was missed; its X turns it off.
 SWSH.mod:addSetting("progress_editor", "Progress editor (badges, key items)", "bool", nil, false)
 -- Catch odds over the ball menu (55_catch.lua).
@@ -132,6 +132,14 @@ SWSH.OWNED = { x0 = 1868, x1 = 1910, rows = { 92, 108 } }
 -- The opponent's HP bar (top right): the fill's row, and the white panel
 -- just above it.
 SWSH.FOEBAR = { x0 = 1468, x1 = 1868, y = 101, above = 91 }
+
+-- The gender sign after each HP panel's name (wherever the name ends):
+-- blue for male, red for female, none for genderless. Chroma rows across
+-- the name's line.
+SWSH.GENDER = {
+    mine = { x0 = 18,   x1 = 330,  rows = { 950, 957, 964 } },
+    foe  = { x0 = 1462, x1 = 1700, rows = { 60, 68, 76 } },
+}
 
 -- The ball menu (X in a battle), bottom right: a black header with the
 -- ball's icon, name ("Poke Balls") and count, a white description box below.

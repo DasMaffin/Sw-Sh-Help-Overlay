@@ -88,14 +88,15 @@ beside it, what went into it.
   Timer (turns counted from the battle menus), Dusk (in a cave, or at night
   by your PC's clock — the Switch normally has the same), Fast (base Speed
   100+), Heavy (its weight), Moon (Moon Stone evolvers), Dream (asleep),
-  Love (your Pokémon is its species: ×8 if the other gender — not read, so
-  both), Dive / Lure (on water / fished: from how it's met where you are;
+  Love (your Pokémon is its species and the other gender ×8 — genders from
+  the blue ♂ / red ♀ sign after each HP panel's name; both if a sign isn't
+  read), Dive / Lure (on water / fished: from how it's met where you are;
   both if it can be either), Beast ×0.1.
 - **The rest of Gen 8's formula**: catch rate and weight from the game's
   data (`09_catch.lua`); ×(30−level)/10 under Lv20; ×0.1 while you have
   under 8 badges and your Pokémon is the lower level; critical captures by
-  how many species you've caught (the checklist's count; the Catching Charm
-  isn't known, so it's left out). Above your badges' level cap: "Too strong
+  how many species you've caught (the checklist's count), doubled with the
+  Catching Charm (a key item, ticked like the others). Above your badges' level cap: "Too strong
   to catch".
 
 Not in a Trainer battle. Setting: *Catch odds in the ball menu* (on).
@@ -163,9 +164,10 @@ keep their own odds).
 ## Story progress
 
 Two settings say how far you are: *Gym Badges you hold* and *Key items you
-have* (Fishing Rod, the Rotom Bike's Water Mode — Sword/Shield's Surf). They
+have* (Fishing Rod, the Rotom Bike's Water Mode — Sword/Shield's Surf —
+and the Catching Charm, for the catch odds). They
 tick themselves from the game's own words — "You defeated Gym Leader Milo!"
-and the badge being handed over, "You obtained a Fishing Rod!", the Water Mode
+and the badge being handed over, "You obtained a Fishing Rod!" (or a Catching Charm), the Water Mode
 upgrade — and can be set by hand (do that once if you start mid-game):
 in the settings, or in the **progress editor** (setting *Progress editor*: a
 panel with every badge and key item to click on and off; its X closes it).
