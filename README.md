@@ -239,10 +239,11 @@ both DLCs) with a ball to tick.
 | `[trainer] Pokemon Trainer Hop` | The trainer you're fighting, from the battle text. |
 | `[foe] Grookey Lv.5 of Pokemon Trainer Hop: exact stats, Hardy` | Their Pokémon was found in their team. |
 | `[foe] status: asleep` | The wild Pokémon's status, from the battle text (catch odds); `none` once cured. |
+| `[evolution] <line 1> / <line 2>` | The evolution scene's text (printed with *Read text outside battles too*). |
 | `[area] Rolling Fields (Wild Area)` | The area banner was read (`(no wild Pokemon)` for a town). |
 | `[state] battle (a wild Skwovet)` | The battle state changed: `battle (Trainer Hop)`, `general (caught Skwovet)`, `general (beat Hop)`, `general (you ran away)`, `general (The wild Pancham used Circle Throw)`, ... |
 | `[progress] Grass Badge: 1 badge, catch up to Lv25 (beat Milo)` | A badge or key item was ticked (Story progress). |
-| `[dex] Wooloo caught (caught)` | A Pokédex checklist mark changed: `(caught)` from the text, `(ball by the HP bar)`, `(clicked)` by hand. |
+| `[dex] Wooloo caught (caught)` | A Pokédex checklist mark changed: `(caught)` from the text, `(evolved)` from "Your … evolved into …!", `(ball by the HP bar)`, `(clicked)` by hand. |
 | `the OCR module isn't available ...` | `bin/ocr.dll` is missing or failed to load. |
 | `OCR failed: ...` | The module reported an error for a job. |
 | `frame format ... is not supported` | The capture isn't NV12. |

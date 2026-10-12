@@ -96,3 +96,6 @@
   Genders: `SWSH.GENDER` sign chroma (blue/red) -> `S.gender.mine/foe`
   (Love Ball). Catching Charm = key item (`P.hasCharm()`), doubles crits.
   The formula is the game's code (not in pkNX/PKHeX): Gen 8 per Dragonfly Cave.
+- Evolution scene: kind "evo" (`SWSH.EVO`: dark band over the pink backdrop,
+  luma + V chroma probes; subtitle lines) -> "evolved into X!" in
+  onCatchText marks X caught (3rd dex method after catch text and owned ball).

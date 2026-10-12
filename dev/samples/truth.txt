@@ -10,3 +10,5 @@ battle_moves.webp	|
 battle_money.webp	You got ₽400 for winning!|		battle
 area_rolling_fields.webp	Rolling Fields|Wild Area		area
 battle_owned_ball.webp	|		
+evolved_raboot.webp	Congratulations! Your Scorbunny evolved|into Raboot!		evo
+battle_ball_menu.webp	|

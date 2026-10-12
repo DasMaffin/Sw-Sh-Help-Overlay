@@ -175,6 +175,16 @@ SWSH.SYS = {
                { y = 1004, x0 = 600, x1 = 1300 } },
 }
 
+-- The evolution scene's text ("Congratulations! Your Scorbunny evolved /
+-- into Raboot!"): white, on a dark see-through band over the scene's pink
+-- backdrop -- told by that band: mid-dark, and pink in chroma (V high),
+-- above the first line and between the two.
+SWSH.EVO = {
+    x0 = 404, x1 = 1516,
+    lines = { { 922, 989 }, { 1000, 1067 } },
+    band = { { y = 915, x0 = 420, x1 = 1500 }, { y = 993, x0 = 420, x1 = 1500 } },
+}
+
 -- Cutscene subtitles: white text straight over the scene, no box. Read only
 -- while neither box is open.
 SWSH.SUB = {

@@ -150,10 +150,11 @@ end
 -- A catch, in the game's own words (its battle and Pokedex text files):
 --   "Gotcha! Wooloo was caught!"         "Wooloo’s data was added to the Pokédex."
 --   "You caught Wooloo!"                 "Wooloo has been sent to a Box!"
+--   "Congratulations! Your Scorbunny evolved into Raboot!"  (evolution scene)
 -- Any box's text (the last is a system message, read with "read_all").
 -- Ticks the species in the Pokedex checklist. Not "was caught in a sticky
 -- web!", which doesn't end there.
-local CATCH = { "([^!]-) was caught!", "^(.-)[’']s data was added to the Pok",
+local CATCH = { "evolved into ([^!]+)!", "([^!]-) was caught!", "^(.-)[’']s data was added to the Pok",
                 "You caught ([^!]+)!", "^(.-) has been sent to a Box" }
 function SWSH.onCatchText(lines)
     if not SWSH.caught then return end
@@ -161,7 +162,7 @@ function SWSH.onCatchText(lines)
     for _, pat in ipairs(CATCH) do
         local name = s:match(pat)
         local e = name and lookup((name:gsub("^Gotcha!%s*", ""):gsub("^%s+", "")))
-        if e then SWSH.caught.mark(e, "caught") return end
+        if e then SWSH.caught.mark(e, pat:find("evolved") and "evolved" or "caught") return end
     end
 end
 

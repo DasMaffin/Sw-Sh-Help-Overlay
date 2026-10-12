@@ -125,6 +125,20 @@ local function gender(frame, g, sx, sy)
     if blue >= 3 and red < 2 then return "male" end
     if red >= 3 and blue < 2 then return "female" end
 end
+local function evoOpen(frame, sx, sy)      -- the evolution scene's pink band
+    local lo, hi = probeRange(frame, SWSH.EVO.band, sx, sy)
+    if not (lo >= 40 and hi <= 125) then return false end
+    for _, p in ipairs(SWSH.EVO.band) do
+        local x0 = math.floor(p.x0 * sx / 2) * 2
+        local s = frame:region(x0, frame:height() + math.floor(p.y * sy / 2),
+                               math.floor((p.x1 - p.x0) * sx / 2) * 2, 1)
+        for i = 1, #s - 1, 16 do
+            local u, v = s:byte(i), s:byte(i + 1)
+            if v < 145 or u < 115 or u > 165 then return false end
+        end
+    end
+    return true
+end
 local function sysOpen(frame, sx, sy)     -- mid-dark grey and flat
     local lo, hi = probeRange(frame, SWSH.SYS.ground, sx, sy)
     return hi <= 90 and lo >= 25 and hi - lo <= 25
@@ -338,6 +352,12 @@ function SWSH.mod:OnFrame(frame)
         for i, band in ipairs(SWSH.SYS.lines) do
             regions[#regions + 1] = region(i, SWSH.SYS.x0, SWSH.SYS.x1, band, sx, sy)
         end
+    elseif evoOpen(frame, sx, sy) then
+        -- Evolving: "Your X evolved into Y!" marks Y caught (40_battle).
+        kind = "evo"
+        for i, band in ipairs(SWSH.EVO.lines) do
+            regions[#regions + 1] = region(i, SWSH.EVO.x0, SWSH.EVO.x1, band, sx, sy)
+        end
     elseif S.menu then
         -- A battle menu: no text box, but the HP panels say who is fighting
         -- and at what level (40_battle.lua). Its white move names would pass
@@ -397,6 +417,8 @@ local function format(kind, name, lines)
         args[#args + 1] = SWSH.C.battle;   args[#args + 1] = "[battle] "
     elseif kind == "sub" then
         args[#args + 1] = SWSH.C.cutscene; args[#args + 1] = "[cutscene] "
+    elseif kind == "evo" then
+        args[#args + 1] = SWSH.C.cutscene; args[#args + 1] = "[evolution] "
     end
     if name ~= "" then
         args[#args + 1] = SWSH.C.name; args[#args + 1] = name .. ": "
