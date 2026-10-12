@@ -210,6 +210,7 @@ def main():
         print("== say:", line)
         L.globals().SWSH.onBattleText(L.table(line))
         L.globals().SWSH.onCatchText(L.table(line))       # as the reader's emit() does
+        L.globals().SWSH.onProgressText(L.table(line))
 
     for path in paths:
         print("==", os.path.basename(path))

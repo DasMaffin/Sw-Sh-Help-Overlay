@@ -312,6 +312,15 @@ local function drawPanel(d, side, s, px, py, scale)
     d:rect(x, y, w, h, 20, 22, 32, 224)
     d:outline(x, y, w, h, 120, 130, 165, 255)
     d:rect(x, y, w, 5 * u, 40, 44, 60, 236)
+    -- A wild one above your catch cap (48_progress): a ball would bounce back.
+    if side == "foe" and not B.trainer and who.lv and SWSH.progress and who.lv > SWSH.progress.cap() then
+        local n = SWSH.progress.needs(who.lv)
+        local by = y + h + 0.6 * u
+        if not at.top then by = y - 4.0 * u end
+        d:rect(x, by, w, 3.4 * u, 90, 30, 34, 236)
+        d:text(x + 1.5 * u, by + 0.7 * u, "Too strong to catch: needs " .. n .. " badge" .. (n == 1 and "" or "s"),
+               2.0 * u, 245, 190, 185, 255)
+    end
     d:text(x + 1.5 * u, y + 1.3 * u, at.title, 2.4 * u, 150, 170, 210, 255)
     d:text(x + 1.5 * u, y + 6.2 * u, e and e[1] or SWSH.overlayText(who.name), 2.9 * u, 240, 242, 255, 255)
     if who.lv then

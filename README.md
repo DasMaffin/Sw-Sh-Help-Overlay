@@ -24,9 +24,11 @@ addons/Sw-Sh-Help-Overlay/
 Asynchronously, so the video never waits for OCR:
 
 1. **OnFrame** (every frame) checks a few pixels to see what's on screen —
-   the battle message box; with *Read text outside battles too* also the white
-   dialogue box (and the speaker's name plate above it), the dark system
-   message box, or neither (then it tries the cutscene subtitle lines)
+   the battle message box, the white dialogue box (and the speaker's name
+   plate above it), the dark system message box, or — with *Read text outside
+   battles too* — neither (then it tries the cutscene subtitle lines).
+   Dialogue and system text is always read (badges, key items and catches are
+   said there) but only printed with that setting on
    — and passes that box's lines to `ocr.read(frame, regions)`. The module
    copies them and returns at once; if it is still busy, the frame is skipped.
 2. **Think** collects finished results with `ocr.poll()`. A box is printed once
@@ -100,6 +102,28 @@ encounter tables (a zone's surfing and flying tables are under the name the
 banner shows; its separate parts — high-level area, near the station, ... —
 keep their own odds).
 
+## Story progress
+
+Two settings say how far you are: *Gym Badges you hold* and *Key items you
+have* (Fishing Rod, the Rotom Bike's Water Mode — Sword/Shield's Surf). They
+tick themselves from the game's own words — "You defeated Gym Leader Milo!"
+and the badge being handed over, "You obtained a Fishing Rod!", the Water Mode
+upgrade — and can be set by hand (do that once if you start mid-game).
+Badges count by the highest Gym ticked, so a missed one never lowers it.
+
+What it's for:
+
+- the **catch cap**: a wild Pokémon above Lv 20 / 25 / 30 / 35 / 40 / 45 / 50 /
+  55 (0-7 badges; any with 8) bounces your ball back;
+- the route list **dims** what isn't open to you yet — fishing without the
+  rod, surfing without Water Mode, Pokémon above your cap — and its hover says
+  why ("needs 4 badges to catch");
+- in battle, a wild foe above your cap gets a red **"Too strong to catch"**
+  under its stats.
+
+The game files don't say when an area itself is reachable (that's in its map
+scripts), only these.
+
 ## Pokédex checklist
 
 Turn on *Pokedex checklist* in the settings: a panel down the right of the
@@ -111,8 +135,8 @@ both DLCs) with a ball to tick.
 - **Showing:** cycles everything / still missing / caught.
 - **The ball** toggles caught. It also ticks itself:
   - from the battle text, in the game's own words: "Gotcha! … was caught!",
-    "…’s data was added to the Pokédex.", "You caught …!" (and "… has been
-    sent to a Box!" with *Read text outside battles too* on);
+    "…’s data was added to the Pokédex.", "You caught …!", "… has been sent
+    to a Box!";
   - from the Poké Ball the game puts right of a wild Pokémon's HP bar when you
     already have its species — read with the HP panels while a battle menu is
     up, and only with that panel's name read the same twice.
@@ -139,6 +163,7 @@ both DLCs) with a ball to tick.
 | `[trainer] Pokemon Trainer Hop` | The trainer you're fighting, from the battle text. |
 | `[foe] Grookey Lv.5 of Pokemon Trainer Hop: exact stats, Hardy` | Their Pokémon was found in their team. |
 | `[area] Rolling Fields (Wild Area)` | The area banner was read (`(no wild Pokemon)` for a town). |
+| `[progress] Grass Badge: 1 badge, catch up to Lv25 (beat Milo)` | A badge or key item was ticked (Story progress). |
 | `[dex] Wooloo caught (caught)` | A Pokédex checklist mark changed: `(caught)` from the text, `(ball by the HP bar)`, `(clicked)` by hand. |
 | `the OCR module isn't available ...` | `bin/ocr.dll` is missing or failed to load. |
 | `OCR failed: ...` | The module reported an error for a job. |
@@ -152,7 +177,8 @@ The English model only knows ASCII, so `'` is printed as `’` and `--` as `—`
 put back in the money messages ("You got ₽400 for winning!").
 
 Settings: *Print what is read to the console*; *Read text outside battles too*
-(off: battle text only); *Show both Pokemon's stats in battle*; *Pokedex checklist*; *Show route information* (on / off / overlay only); and *Show
+(off: only battle text is printed); *Show both Pokemon's stats in battle*;
+*Gym Badges you hold* / *Key items you have* (Story progress); *Pokedex checklist*; *Show route information* (on / off / overlay only); and *Show
 what the reader sees* (outlines the lines being read and shows the latest
 reading).
 

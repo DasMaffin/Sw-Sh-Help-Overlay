@@ -223,6 +223,19 @@ local function rowAt(rows, y, u, my)
     end
 end
 
+-- Why a way isn't open to you yet (48_progress: rod, Water Mode, badges), or nil.
+local function blocked(w) return SWSH.progress and SWSH.progress.blocked(w[1], w[3]) end
+local function rowBlocked(row)
+    if not SWSH.progress then return false end
+    if row.kind == "special" then
+        return row.e[3] == "Static" and SWSH.progress.blocked(nil, row.e[5]) ~= nil
+    end
+    for _, w in ipairs(row.e[3]) do if not blocked(w) then return false end end
+    return true
+end
+-- Dimmed: nothing about it is open to you yet.
+local function dim(c, off) if off then return { c[1] * 0.45, c[2] * 0.45, c[3] * 0.5 } end return c end
+
 local function specialTag(e) return e[3] .. " Lv" .. e[5] end
 
 local function ballRect(x, y, W, u, row)
@@ -304,13 +317,14 @@ overlay.add("swsh.route", {
                 local bx, by, bw = ballRect(x, y, W, u, row)
                 local fit = math.floor((bx - 0.8 * u - (x + 1.4 * u)) / (1.8 * u))
                 local name = #e[2] > fit and (e[2]:sub(1, math.max(1, fit - 2)) .. "..") or e[2]
-                d:text(x + 1.4 * u, ry, name, 1.8 * u, 215, 195, 245, 255)
-                rightText(d, x + W - 1.4 * u, ry + 0.2 * u, specialTag(e), 1.5 * u, 165, 150, 200)
+                local c1, c2 = dim({ 215, 195, 245 }, rowBlocked(row)), dim({ 165, 150, 200 }, rowBlocked(row))
+                d:text(x + 1.4 * u, ry, name, 1.8 * u, c1[1], c1[2], c1[3], 255)
+                rightText(d, x + W - 1.4 * u, ry + 0.2 * u, specialTag(e), 1.5 * u, c2[1], c2[2], c2[3])
                 SWSH.drawBall(d, bx, by, bw, SWSH.caught.has(e[1]))
             else
                 local top = row.e[3][1]
                 local st = style(top[1])
-                local c = st.c
+                local c = dim(st.c, rowBlocked(row))
                 -- The name, and the part of the place it's only met in, stop
                 -- short of the icon, ball and odds: a long one is cut.
                 local bx, by, bw = ballRect(x, y, W, u, row)
@@ -344,7 +358,8 @@ overlay.add("swsh.routeinfo", {
         local fs = 1.6 * u
         if row.kind == "special" then
             local e = row.e
-            local lines = wrap(e[4], math.floor(42 / 1.6) - 2)
+            local why = e[3] == "Static" and SWSH.progress and SWSH.progress.blocked(nil, e[5])
+            local lines = wrap(e[4] .. (why and (". " .. why:gsub("^n", "N")) or ""), math.floor(42 / 1.6) - 2)
             local pw, ph = 44 * u, (6.6 + #lines * 2.4) * u
             local px, py = x + W + 0.8 * u, y + row.y * u - 1.0 * u
             if px + pw > d:w() then px = x - pw - 0.8 * u end
@@ -366,7 +381,7 @@ overlay.add("swsh.routeinfo", {
         local pw = (#others > 0 and 58 or 44) * u
         local ph = 4.2
         for _, w in ipairs(row.e[3]) do
-            ph = ph + 2.8 + (w[5] ~= "" and 2.2 or 0) + (w[7] and #w[7] * 2.2 or 0)
+            ph = ph + 2.8 + (w[5] ~= "" and 2.2 or 0) + (w[7] and #w[7] * 2.2 or 0) + (blocked(w) and 2.2 or 0)
         end
         if #others > 0 then ph = ph + 3.0 + #others * 4.4 + (more > 0 and 2.4 or 0) + 1.4 end
         ph = ph * u
@@ -391,6 +406,11 @@ overlay.add("swsh.routeinfo", {
             rightText(d, px + pw - 14.0 * u, ry, pct(w), fs, c[1], c[2], c[3])
             rightText(d, px + pw - 1.2 * u, ry, lvText(w), fs, 205, 205, 175)
             ry = ry + 2.8 * u
+            local why = blocked(w)
+            if why then
+                d:text(px + 3.4 * u, ry - 0.6 * u, why, fs * 0.9, 235, 130, 120, 255)
+                ry = ry + 2.2 * u
+            end
             if w[5] ~= "" then
                 d:text(px + 3.4 * u, ry - 0.6 * u, "weather: " .. w[5], fs * 0.9, 170, 178, 200, 255)
                 ry = ry + 2.2 * u
@@ -399,6 +419,8 @@ overlay.add("swsh.routeinfo", {
                 local own = f[1] == R.name
                 local cr, cg, cb = 170, 178, 200
                 if not own then cr, cg, cb = 225, 190, 120 end
+                -- A part above your catch cap: dimmed (the line above says why).
+                if SWSH.progress and f[3] > SWSH.progress.cap() then cr, cg, cb = cr * 0.5, cg * 0.5, cb * 0.5 end
                 d:text(px + 3.4 * u, ry - 0.6 * u, f[1] .. (f[5] ~= "" and (" (" .. f[5] .. ")") or ""), fs * 0.9, cr, cg, cb, 255)
                 rightText(d, px + pw - 14.0 * u, ry - 0.6 * u, f[2] .. "%", fs * 0.9, cr, cg, cb)
                 rightText(d, px + pw - 1.2 * u, ry - 0.6 * u, lvText({ nil, nil, f[3], f[4] }), fs * 0.9, 175, 175, 155)

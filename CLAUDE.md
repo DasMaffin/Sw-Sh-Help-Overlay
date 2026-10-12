@@ -59,5 +59,11 @@
   `pknx-export text <message dir> <out>` dumps all game text) and the owned
   ball right of a wild foe's HP bar (`SWSH.OWNED`, red chroma; read with the
   panels as `got.ball`, marked in `onPanels`).
+- Story progress (`48_progress.lua`): settings `badges` / `key_items`
+  ("multi"), ticked by `SWSH.onProgressText` (reader emit, every kind --
+  dialogue/system boxes are ALWAYS read now, printed only with read_all).
+  `SWSH.progress.cap()` / `.blocked(how, lo)` dim route rows; the battle panel
+  warns on a wild foe above the cap. Area reachability is NOT in the game
+  data we read -- don't claim it.
 - `45_dex.lua` is the Pokedex checklist, ported from pkmn_stats'
   `75_ui_dex.lua` (FRLG); caught marks in `data` file caught.txt by DEX key.

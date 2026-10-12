@@ -49,7 +49,8 @@ end
 
 ----------------------------------------------------------------- settings --
 SWSH.mod:addSetting("log_text", "Print what is read to the console", "bool", nil, true)
--- Off: only battle text is read. On: dialogue, system and cutscene text too.
+-- Off: only battle text is printed (dialogue and system boxes are still read,
+-- for badges, key items and catches). On: those and cutscene text are printed.
 SWSH.mod:addSetting("read_all", "Read text outside battles too", "bool", nil, false)
 SWSH.mod:addSetting("show_stats", "Show both Pokemon's stats in battle", "bool", nil, true)
 -- The checklist panel (45_dex.lua); its own X turns this back off.
@@ -57,6 +58,10 @@ SWSH.mod:addSetting("show_stats", "Show both Pokemon's stats in battle", "bool",
 SWSH.mod:addSetting("route_info", "Show route information", "choice",
                     { "on", "off", "overlay only" }, "on")
 SWSH.mod:addSetting("pokedex", "Pokedex checklist", "bool", nil, false)
+-- Story progress (48_progress.lua): ticked from the game's text, fixable here.
+SWSH.mod:addSetting("badges", "Gym Badges you hold", "multi",
+                    { "Grass", "Water", "Fire", "Fighting", "Ghost", "Fairy", "Rock", "Ice", "Dark", "Dragon" })
+SWSH.mod:addSetting("key_items", "Key items you have", "multi", { "Fishing Rod", "Rotom Bike Water Mode" })
 -- Outlines the lines being read and shows the latest reading over the picture.
 SWSH.mod:addSetting("debug", "Show what the reader sees", "bool", nil, false)
 

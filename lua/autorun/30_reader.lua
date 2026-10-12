@@ -145,7 +145,10 @@ function SWSH.mod:OnFrame(frame)
         for what, r in pairs({ name = SWSH.AREA.name, sub = SWSH.AREA.sub }) do
             regions[#regions + 1] = region(what, r.x0, r.x1, { r.y0, r.y1 }, sx, sy)
         end
-    elseif all and boxOpen(frame, sx, sy) then
+    -- Dialogue and system boxes are always read (badges, key items and
+    -- catches are said there: 48_progress, 40_battle) -- printed only with
+    -- read_all.
+    elseif boxOpen(frame, sx, sy) then
         kind = "box"
         for i, band in ipairs(SWSH.BOX.lines) do
             regions[#regions + 1] = region(i, SWSH.BOX.x0, SWSH.BOX.x1, band, sx, sy)
@@ -160,7 +163,7 @@ function SWSH.mod:OnFrame(frame)
         for i, band in ipairs(SWSH.BATTLE.lines) do
             regions[#regions + 1] = region(i, SWSH.BATTLE.x0, SWSH.BATTLE.x1, band, sx, sy)
         end
-    elseif all and sysOpen(frame, sx, sy) then
+    elseif sysOpen(frame, sx, sy) then
         kind = "sys"
         for i, band in ipairs(SWSH.SYS.lines) do
             regions[#regions + 1] = region(i, SWSH.SYS.x0, SWSH.SYS.x1, band, sx, sy)
@@ -242,7 +245,8 @@ local function emit(r)
     S.logged = r
     if r.kind == "battle" and SWSH.onBattleText then SWSH.onBattleText(r.lines) end
     if SWSH.onCatchText then SWSH.onCatchText(r.lines) end
-    if SWSH.mod:get("log_text") then
+    if SWSH.onProgressText then SWSH.onProgressText(r.lines) end
+    if SWSH.mod:get("log_text") and (r.kind == "battle" or SWSH.mod:get("read_all")) then
         SWSH.log(SWSH.LV.dialogue, table.unpack(format(r.kind, r.name, r.lines)))
     end
 end
