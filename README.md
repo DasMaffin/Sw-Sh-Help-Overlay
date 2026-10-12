@@ -109,13 +109,13 @@ regional-form trades are left out: she moves around the Isle of Armor.
 Places with nothing say "No wild Pokemon here". The area is remembered across restarts.
 
 The list is never shown in a battle. The reader keeps a state, *general* or
-*battle*, from the game's own lines: into battle on "You encountered a wild
-…!", "A wild … appeared!", "You are challenged by …!" (or any battle box or
-menu); out of it on how it ends — "Gotcha! … was caught!", "You got away
-safely!", "The wild … fled!", "The wild … fainted!", "You defeated …!", "You
-lost to …!", "You have no more Pokémon that can fight!" — once the battle box
-has gone. Your own Pokémon or a Trainer's fainting doesn't end it. An area
-banner or a game menu ends it too (neither can be in a battle).
+*battle*, changed only by the game's own lines that open and close a battle:
+into battle on "You encountered a wild …!", "A wild … appeared!", "You are
+challenged by …!"; back to general on how it ends — "Gotcha! … was caught!",
+"You got away safely!", "The wild … fled!", "The wild … fainted!", "You
+defeated …!", "You lost to …!", "You have no more Pokémon that can fight!".
+Your own Pokémon or a Trainer's fainting doesn't end it. Nothing else (a
+battle box, time, an area banner) moves it.
 
 **Game menus** (X menu, bag, boxes, …): while the black bar of button hints
 is along the bottom, the overlays step aside — unless MCCP's own overlay is

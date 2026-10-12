@@ -13,7 +13,6 @@
 local S = {
     kind  = nil,     -- what is on screen: "box", "battle", "sys", "sub" or nil
     menu  = false,   -- a battle menu is up (the player's HP panel shows)
-    battleFrame = nil, -- the last frame with a battle box or menu up
     lines = {},      -- the latest reading, line by line
     name  = "",      -- the speaker, "" without a name plate
     pending = nil,   -- the latest reading { kind, name, lines, text, body }
@@ -129,18 +128,13 @@ local jobKind = {}       -- job id -> what it read ("box", "battle", "sys", "sub
 local jobBall = {}       -- job id -> the owned ball was by the opponent's HP bar (panels)
 
 --------------------------------------------------------- battle state --
--- "general" or "battle". Into battle on the game's opening lines (or any
--- battle box / menu seen); out on its closing ones, once the box has been
--- gone a moment (the EXP lines come after "fainted"). An area banner or a
--- game menu can't be in a battle, so they end it too, and so does a long
--- stretch with no battle box at all (a closing line missed).
--- Phrases: commontl_std, btl_app (`pknx-export text`).
+-- "general" or "battle", changed ONLY by the game's own lines that open and
+-- close a battle (common\btl_std, btl_app; `pknx-export text`): nothing
+-- else -- no battle box, no timeout, no banner -- moves it.
 S.state = "general"
-local END_GAP, STALE = 120, 1800          -- frames: 2 s without the box after the end, 30 s without any
 local function setState(st, why)
     if S.state == st then return end
     S.state = st
-    S.endFrame, S.startFrame = nil, frameNo
     if st == "general" then S.foe = nil end
     SWSH.log(SWSH.LV.dialogue, SWSH.C.system, "[state] ", SWSH.C.text, st .. " (" .. why .. ")")
 end
@@ -173,11 +167,8 @@ local function battleText(lines)
     for _, p in ipairs(START) do
         local who = s:match(p[1])
         if who then
+            setState("battle", (p[2] == "wild" and "a wild " or "Trainer ") .. who)
             S.foe = { kind = p[2], name = who }
-            if S.state ~= "battle" then
-                setState("battle", (p[2] == "wild" and "a wild " or "Trainer ") .. who)
-            end
-            S.endFrame = nil
             return
         end
     end
@@ -185,7 +176,7 @@ local function battleText(lines)
     for _, p in ipairs(FINISH) do
         local who = s:match(p[1])
         if who then
-            S.endFrame, S.endWhy = frameNo, p[2]:format(who)
+            setState("general", p[2]:format(who))
             return
         end
     end
@@ -213,10 +204,7 @@ function SWSH.mod:OnFrame(frame)
     local sx, sy = frame:width() / SWSH.REF_W, frame:height() / SWSH.REF_H
     local all = SWSH.mod:get("read_all")    -- off: battle text only
     S.menu = menuOpen(frame, sx, sy)
-    if gameMenu(frame, sx, sy) then
-        S.gameMenuFrame = frameNo
-        setState("general", "menu")
-    end
+    if gameMenu(frame, sx, sy) then S.gameMenuFrame = frameNo end
     local kind, regions, ball = nil, {}, false
     if SWSH.mod:get("route_info") ~= "off" and bannerOpen(frame, sx, sy) then
         -- Entering an area: its name (50_route.lua).
@@ -239,8 +227,6 @@ function SWSH.mod:OnFrame(frame)
     elseif battleOpen(frame, sx, sy) then
         -- Before the system box: its probes would match the battle band too.
         kind = "battle"
-        S.battleFrame = frameNo
-        setState("battle", "battle box")
         for i, band in ipairs(SWSH.BATTLE.lines) do
             regions[#regions + 1] = region(i, SWSH.BATTLE.x0, SWSH.BATTLE.x1, band, sx, sy)
         end
@@ -255,8 +241,6 @@ function SWSH.mod:OnFrame(frame)
         -- for a subtitle, so no subtitles here.
         see(nil)
         kind = "panel"
-        S.battleFrame = frameNo
-        setState("battle", "battle menu")
         ball = ownedBall(frame, sx, sy)
         for side, p in pairs(SWSH.HPBOX) do
             for what, r in pairs(p) do
@@ -342,7 +326,6 @@ local function apply(res)
         return
     end
     if kind == "area" then               -- the area banner, for 50_route
-        setState("general", "area banner")
         local got = {}
         for _, r in ipairs(res.regions) do
             local l = r.lines[1]
@@ -410,17 +393,8 @@ see = function(cur)
     if not cur then S.logged = nil end   -- the same words again later are new
 end
 
--- A battle is on: its box or menu was up in the last ~4 s (the move
--- animations between them show neither).
-function SWSH.inBattle()
-    if S.state == "battle" then
-        local since = frameNo - math.max(S.battleFrame or 0, S.startFrame or 0)
-        if (S.endFrame and since >= END_GAP) or since >= STALE then
-            setState("general", S.endFrame and S.endWhy or "no battle box for a while")
-        end
-    end
-    return S.state == "battle" or (S.battleFrame ~= nil and frameNo - S.battleFrame < 240)
-end
+-- In a battle: between its opening line and its closing one (battle state).
+function SWSH.inBattle() return S.state == "battle" end
 
 -- A game menu is up (its hint bar seen just now): the overlays step aside,
 -- unless MCCP's own overlay is open (then you're using them).
