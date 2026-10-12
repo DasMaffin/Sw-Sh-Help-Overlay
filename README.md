@@ -120,9 +120,12 @@ version you're playing:
   else it's met;
 - **clicking** a row opens its Bulbapedia page;
 - what you surely can't get yet sits in one line instead, **"Requires
-  Fishing Rod"** / **"Requires Water Mode"** / **"Requires 2 Badges"** (too
-  strong to catch yet, fixed Pokémon included; see Story progress); hover it
-  for those Pokémon with their way, odds and levels. One met both ways is in
+  Water Mode"** / **"Requires 2 Badges"** (too strong to catch yet, fixed
+  Pokémon included; see Story progress); hover it for how to get it in one
+  sentence ("Beat Gym Leader Nessa at the Hulbury Stadium for your 2nd
+  badge.") and those Pokémon with their way, odds and levels; click it for
+  its Bulbapedia page (the next Gym Leader, or the Rotom Bike). (Fishing
+  needs nothing: the Fishing Rod is yours from the start.) One met both ways is in
   both lists. Once you have the item, the line goes and they're back in the
   list. (A high-level area that may be out of reach stays in the list: the
   game data can't tell.)
@@ -164,10 +167,10 @@ keep their own odds).
 ## Story progress
 
 Two settings say how far you are: *Gym Badges you hold* and *Key items you
-have* (Fishing Rod, the Rotom Bike's Water Mode — Sword/Shield's Surf —
-and the Catching Charm, for the catch odds). They
+have* (the Rotom Bike's Water Mode — Sword/Shield's Surf — and the
+Catching Charm, for the catch odds). They
 tick themselves from the game's own words — "You defeated Gym Leader Milo!"
-and the badge being handed over, "You obtained a Fishing Rod!" (or a Catching Charm), the Water Mode
+and the badge being handed over, "You obtained a Catching Charm!", the Water Mode
 upgrade — and can be set by hand (do that once if you start mid-game):
 in the settings, or in the **progress editor** (setting *Progress editor*: a
 panel with every badge and key item to click on and off; its X closes it).

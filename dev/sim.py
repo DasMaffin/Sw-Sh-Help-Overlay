@@ -55,6 +55,7 @@ function overlay.add(id, spec) spec.id = id overlay.elements[id] = spec return s
 hook = { fns = {} }
 function hook.Add(ev, name, fn) hook.fns[name] = fn end
 camera = { pictureRect = function() return 0, 0, 1920, 1080 end }
+browser = { open = function(url) print("[browser] " .. url) end }
 -- Paints an overlay element, printing its text calls; returns every call.
 function sim_paint(id)
     local texts, ops = {}, {}

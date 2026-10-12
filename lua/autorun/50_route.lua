@@ -209,22 +209,47 @@ local function visible()
 end
 
 -- What a way surely needs and you surely lack (48_progress), or nil: the
--- Fishing Rod, Water Mode, or the badges to catch at its lowest level (key
+-- bike's Water Mode, or the badges to catch at its lowest level (key
 -- "b<N>"). Those leave the list for a "Requires ..." group; a part of a place
 -- you may not reach yet (a high-level area) can't be told, so reaching it
 -- isn't -- only catching it is.
-local REQUIRES = { ["Fishing Rod"] = "Requires Fishing Rod", ["Water Mode"] = "Requires Water Mode" }
-local REQ_LONG = { ["Fishing Rod"] = "Requires the Fishing Rod", ["Water Mode"] = "Requires the bike's Water Mode" }
+local REQUIRES = { ["Water Mode"] = "Requires Water Mode" }
+local REQ_LONG = { ["Water Mode"] = "Requires the bike's Water Mode" }
+-- How to get it, in a sentence, and its Bulbapedia page (a click on the row).
+-- Badges: the Gym Leaders still to beat, in order; 4th and 6th by version.
+local GYMS = { { "Milo", "Turffield" }, { "Nessa", "Hulbury" }, { "Kabu", "Motostoke" },
+               { "Bea", "Stow-on-Side", sh = "Allister" }, { "Opal", "Ballonlea" },
+               { "Gordie", "Circhester", sh = "Melony" }, { "Piers", "Spikemuth" },
+               { "Raihan", "Hammerlocke" } }
+local function leader(i)
+    local g = GYMS[i]
+    return game.isActive("pkmn_shield") and g.sh or g[1], g[2]
+end
+local function reqHow(need)
+    local n = tonumber(need:match("^b(%d+)$"))
+    if not n then
+        return "On Route 9, after the Circhester Gym, beat the Team Yell Grunt holding up the scientist: he gives your Rotom Bike its Water Mode.",
+               "https://bulbapedia.bulbagarden.net/wiki/Rotom_Bike"
+    end
+    local have = SWSH.progress and SWSH.progress.badges() or 0
+    local who, town = leader(have + 1)
+    local url = "https://bulbapedia.bulbagarden.net/wiki/" .. who
+    if n == have + 1 then
+        return "Beat Gym Leader " .. who .. " at the " .. town .. " Stadium for your " .. n
+               .. ({ "st", "nd", "rd" })[n] .. (n > 3 and "th" or "") .. " badge.", url
+    end
+    local last, lastTown = leader(n)
+    return "Beat the Gym Leaders from " .. who .. " (" .. town .. ") up to " .. last .. " (" .. lastTown .. ").", url
+end
 local function reqLabel(need, long)
     local n = tonumber(need:match("^b(%d+)$"))
     if n then return "Requires " .. n .. (n == 1 and " Badge" or " Badges") .. (long and " to catch" or "") end
     return (long and REQ_LONG or REQUIRES)[need]
 end
-local function reqRank(need) return need == "Fishing Rod" and 0 or need == "Water Mode" and 1 or 10 + tonumber(need:sub(2)) end
+local function reqRank(need) return need == "Water Mode" and 1 or 10 + tonumber(need:sub(2)) end
 local function lacks(how, lo)
     local P = SWSH.progress
     if not P then return nil end
-    if how == "fishing" and not P.hasRod() then return "Fishing Rod" end
     if (how == "surfing" or how == "Sharpedo spots") and not P.hasWater() then return "Water Mode" end
     if lo and lo > P.cap() then return "b" .. P.needs(lo) end
 end
@@ -276,7 +301,7 @@ local function layout(screenH)
     local all = {}
     for _, e in ipairs(wild) do all[#all + 1] = { kind = "wild", e = e, h = ROW_N } end
     for _, need in ipairs(order) do
-        all[#all + 1] = { kind = "req", label = reqLabel(need), long = reqLabel(need, true), list = groups[need], h = ROW_N }
+        all[#all + 1] = { kind = "req", need = need, label = reqLabel(need), long = reqLabel(need, true), list = groups[need], h = ROW_N }
     end
     if #sp > 0 then
         if #all > 0 then all[#all + 1] = { kind = "rule", h = RULE_N } end
@@ -368,6 +393,11 @@ overlay.add("swsh.route", {
             return
         end
         local _, row = rowAt(L.rows, L.y, L.u, my)
+        if row and row.kind == "req" then          -- how to get it: its wiki page
+            local _, url = reqHow(row.need)
+            if browser and browser.open then browser.open(url) end
+            return
+        end
         if not row or not row.e then return end
         local bx, by, bw, bh = ballRect(L, row)
         if bx and inside({ bx, by, bw, bh }, mx, my) then
@@ -502,10 +532,14 @@ overlay.add("swsh.routeinfo", {
             local hint = wrap((row.long:find("Badge") and "Have them already? Tick them" or "Have it already? Tick it")
                               .. " in the progress editor (the mod's settings).",
                               math.floor((pw - 2.4 * u) / (fs * 0.85)))
-            local ph = (4.4 + #row.list * 2.4 + 0.6 + #hint * 2.0) * u
+            local how = wrap(reqHow(row.need) .. " (Click: its wiki page.)", math.floor((pw - 2.4 * u) / (fs * 0.9)))
+            local ph = (4.4 + #how * 2.1 + 0.6 + #row.list * 2.4 + 0.6 + #hint * 2.0) * u
             local px, py = card(d, L, row, pw, ph)
             d:text(px + 1.2 * u, py + 0.8 * u, row.long, fs, 225, 190, 120, 255)
-            local ry = py + 3.8 * u
+            for i, ln in ipairs(how) do
+                d:text(px + 1.2 * u, py + (3.6 + (i - 1) * 2.1) * u, ln, fs * 0.9, 170, 205, 185, 255)
+            end
+            local ry = py + (3.6 + #how * 2.1 + 0.8) * u
             for _, e in ipairs(row.list) do
                 local w = e[3][1]
                 local st = style(w[1])

@@ -63,7 +63,7 @@ SWSH.mod:addSetting("evolutions", "Evolutions you can get", "bool", nil, false)
 -- Story progress (48_progress.lua): ticked from the game's text, fixable here.
 SWSH.mod:addSetting("badges", "Gym Badges you hold", "multi",
                     { "Grass", "Water", "Fire", "Fighting", "Ghost", "Fairy", "Rock", "Ice", "Dark", "Dragon" })
-SWSH.mod:addSetting("key_items", "Key items you have", "multi", { "Fishing Rod", "Rotom Bike Water Mode", "Catching Charm" })
+SWSH.mod:addSetting("key_items", "Key items you have", "multi", { "Rotom Bike Water Mode", "Catching Charm" })
 -- A panel to tick both by click, for when a read was missed; its X turns it off.
 SWSH.mod:addSetting("progress_editor", "Progress editor (badges, key items)", "bool", nil, false)
 -- Catch odds over the ball menu (55_catch.lua).

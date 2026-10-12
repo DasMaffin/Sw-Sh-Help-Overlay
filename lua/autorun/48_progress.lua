@@ -1,12 +1,13 @@
 -- Story progress the panels need: Gym Badges (the catch level cap) and the
--- key items that open ways of meeting Pokemon (the Fishing Rod; the Rotom
--- Bike's Water Mode, Sword/Shield's Surf) or help catching them (the
--- Catching Charm: more critical captures, 55_catch). Kept in two of the mod's own
+-- key items that open ways of meeting Pokemon (the Rotom Bike's Water Mode,
+-- Sword/Shield's Surf) or help catching them (the Catching Charm: more
+-- critical captures, 55_catch). The Fishing Rod is yours from the start of
+-- the game: fishing is always open. Kept in two of the mod's own
 -- settings ("multi", saved by the engine), ticked here from what the game
 -- says -- in its own words, from its text files -- and fixable by hand there:
 --   "You defeated Gym Leader Milo!"                        (battle text)
 --   "...present you with your very own Grass Badge!"       (dialogue)
---   "You obtained a Fishing Rod!"                          (system box)
+--   "You obtained a Catching Charm!"                       (system box)
 --   "With the Rotom Bike "Water Mode," you'll cruise..."   (dialogue)
 -- Nothing ever unticks one but the settings.
 
@@ -18,7 +19,7 @@ local TIER = { Grass = 1, Water = 2, Fire = 3, Fighting = 4, Ghost = 4, Fairy = 
                Dark = 7, Dragon = 8 }
 local LEADER = { milo = "Grass", nessa = "Water", kabu = "Fire", bea = "Fighting", allister = "Ghost",
                  opal = "Fairy", gordie = "Rock", melony = "Ice", piers = "Dark", raihan = "Dragon" }
-SWSH.ITEMS = { "Fishing Rod", "Rotom Bike Water Mode", "Catching Charm" }
+SWSH.ITEMS = { "Rotom Bike Water Mode", "Catching Charm" }
 
 -- The highest level a wild Pokemon may be to be caught, by badges held
 -- (common\btl_std: "You don't have enough Gym Badges to catch a Pokémon
@@ -48,13 +49,12 @@ function P.needs(lv)
     return 8
 end
 function P.hasCharm() return has(SWSH.mod:get("key_items"), "Catching Charm") end
-function P.hasRod() return has(SWSH.mod:get("key_items"), "Fishing Rod") end
+function P.hasRod() return true end          -- given at the start
 function P.hasWater() return has(SWSH.mod:get("key_items"), "Rotom Bike Water Mode") end
 
 -- Why a way of meeting a Pokemon isn't open to you yet ({ how, ..., lo }),
 -- or nil.
 function P.blocked(how, lo)
-    if how == "fishing" and not P.hasRod() then return "needs the Fishing Rod" end
     if (how == "surfing" or how == "Sharpedo spots") and not P.hasWater() then
         return "needs the bike's Water Mode"
     end
@@ -87,9 +87,7 @@ function SWSH.onProgressText(lines)
         tick("badges", badge, "given")
         return
     end
-    if s:find("Fishing Rod") and (s:find("obtained") or s:find("received")) then
-        tick("key_items", "Fishing Rod", "obtained")
-    elseif s:find("Catching Charm") and (s:find("obtained") or s:find("received")) then
+    if s:find("Catching Charm") and (s:find("obtained") or s:find("received")) then
         tick("key_items", "Catching Charm", "obtained")
     elseif s:find("Water Mode") and (s:find("cruise") or s:find("across the water")) then
         tick("key_items", "Rotom Bike Water Mode", "Rotom Bike upgraded")
@@ -121,7 +119,7 @@ end
 -- Boxes: { key, value, label, x, y, w, h } in screen pixels, plus the X.
 local function editorLayout(sw, sh)
     local u = U * sh / SWSH.REF_H
-    local W, H = 58 * u, 42.4 * u
+    local W, H = 58 * u, 39.6 * u
     local x, y = (sw - W) / 2, (sh - H) / 2
     local boxes = {}
     for i, b in ipairs(SWSH.BADGES) do
@@ -176,7 +174,7 @@ overlay.add("swsh.progress", {
         end
         -- What it adds up to.
         local n = P.badges()
-        d:text(x + 1.4 * u, y + 38.6 * u, n .. (n == 1 and " badge" or " badges") .. ": catch up to "
+        d:text(x + 1.4 * u, y + 35.8 * u, n .. (n == 1 and " badge" or " badges") .. ": catch up to "
                .. (n == 8 and "any level" or ("Lv" .. P.cap())), 1.6 * u, 200, 206, 220, 255)
     end,
 })
