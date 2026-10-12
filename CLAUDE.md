@@ -72,7 +72,9 @@
   filter button All/Missing/Caught (data file routefilter.txt). Specials'
   how = one sentence each, by hand in gen_romdata (GIFT_HOW, LEGEND_HOW).
   `SWSH.progress.cap()` / `.blocked(how, lo)` dim route rows; the battle panel
-  warns on a wild foe above the cap. Area reachability is NOT in the game
+  warns on a wild foe that's too strong: `SWSH.tooStrong(lv)` = the
+  opening line's "very strong-looking" (`S.foe.strong`, game truth), the
+  cap only when that line wasn't read. Area reachability is NOT in the game
   data we read -- don't claim it.
 - Battle state (30_reader): `S.state` "general"/"battle" changed ONLY by the
   game's start/end lines (START / FINISH tables, btl_std phrases; wild vs
