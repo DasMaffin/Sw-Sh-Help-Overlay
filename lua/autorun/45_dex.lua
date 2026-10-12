@@ -132,7 +132,9 @@ end
 local function active()
     return game.isActive("pkmn_sword") or game.isActive("pkmn_shield")
 end
-local function isOpen() return SWSH.mod:get("pokedex") == true end
+local function isOpen()
+    return SWSH.mod:get("pokedex") == true and not (SWSH.hideForMenu and SWSH.hideForMenu())
+end
 local function isPinned()
     return ((overlay.getUserMode and overlay.getUserMode("swsh.dex")) or "pinned") == "pinned"
 end

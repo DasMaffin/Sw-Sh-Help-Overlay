@@ -58,6 +58,8 @@ SWSH.mod:addSetting("show_stats", "Show both Pokemon's stats in battle", "bool",
 SWSH.mod:addSetting("route_info", "Show route information", "choice",
                     { "on", "off", "overlay only" }, "on")
 SWSH.mod:addSetting("pokedex", "Pokedex checklist", "bool", nil, false)
+-- Evolutions of what you have caught that you don't have yet (47_evos.lua).
+SWSH.mod:addSetting("evolutions", "Evolutions you can get", "bool", nil, false)
 -- Story progress (48_progress.lua): ticked from the game's text, fixable here.
 SWSH.mod:addSetting("badges", "Gym Badges you hold", "multi",
                     { "Grass", "Water", "Fire", "Fighting", "Ghost", "Fairy", "Rock", "Ice", "Dark", "Dragon" })
@@ -136,6 +138,14 @@ SWSH.AREA = {
 }
 
 -- The dark system message box ("Scorbunny has been added to your party.").
+-- Any game menu (X menu, bag, boxes, ...): the black bar of button hints
+-- along the bottom ("A Confirm  B Quit"), pure black left of the hints. The
+-- overlays step aside while it's up.
+SWSH.MENU = {
+    bar = { { y = 1044, x0 = 40, x1 = 1000 }, { y = 1072, x0 = 40, x1 = 1000 } },
+    above = { { y = 1018, x0 = 40, x1 = 1000 } },   -- the menu itself: not black
+}
+
 SWSH.SYS = {
     x0 = 530, x1 = 1376,
     lines = { { 888, 939 }, { 948, 999 } },

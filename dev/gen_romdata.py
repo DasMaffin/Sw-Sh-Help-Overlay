@@ -464,3 +464,90 @@ SWSH.SPECIALS = {
 out = os.path.join(root, 'lua', 'autorun', '09_specials.lua')
 open(out, 'w', encoding='utf-8', newline='\n').write(hdr + '\n'.join(out_rows) + '\n}\n')
 print(len(out_rows), 'places with specials ->', out)
+
+# ----------------------------------------------------------- evolutions --
+# The game's own evolution table (evolutions.json), each method in a short
+# sentence for the evolutions panel.
+def a(item): return ('an ' if item[:1] in tuple('AEIOU') else 'a ') + item
+def evoText(e):
+    m, arg, lv = e['method'], ascii(e['arg']) if e['arg'] else None, e['level']
+    to = SPECIES[e['to']]
+    return {
+        'LevelUp': 'Level %d' % lv,
+        'LevelUpFriendship': 'Level up with high friendship',
+        'LevelUpFriendshipMorning': 'Level up with high friendship during the day',
+        'LevelUpFriendshipNight': 'Level up with high friendship at night',
+        'Trade': 'Trade it',
+        'TradeHeldItem': 'Trade it holding %s' % a(arg or ''),
+        'TradeShelmetKarrablast': 'Trade it for a %s' % ('Shelmet' if to == 'Escavalier' else 'Karrablast'),
+        'UseItem': 'Use %s' % a(arg or ''),
+        'UseItemMale': 'Use %s on a male' % a(arg or ''),
+        'UseItemFemale': 'Use %s on a female' % a(arg or ''),
+        'LevelUpATK': 'Level %d with Attack higher than Defense' % lv,
+        'LevelUpDEF': 'Level %d with Defense higher than Attack' % lv,
+        'LevelUpAeqD': 'Level %d with Attack equal to Defense' % lv,
+        'LevelUpNinjask': 'Level %d' % lv,
+        'LevelUpHeldItemDay': 'Level up holding %s during the day' % a(arg or ''),
+        'LevelUpHeldItemNight': 'Level up holding %s at night' % a(arg or ''),
+        'LevelUpKnowMove': 'Level up knowing %s' % arg,
+        'LevelUpWithTeammate': 'Level up with %s in the party' % a(arg or ''),
+        'LevelUpMale': 'Level %d (male)' % lv,
+        'LevelUpFemale': 'Level %d (female)' % lv,
+        'LevelUpFormFemale1': 'Level %d (female)' % lv,
+        'LevelUpAffection50MoveType': 'Level up with high friendship knowing a Fairy move',
+        'LevelUpMoveType': 'Level %d with a Dark-type Pokemon in the party' % lv,
+        'LevelUpWeather': 'Level %d while it rains (or fog) outside' % lv,
+        'LevelUpMorning': 'Level %d during the day' % lv,
+        'LevelUpNight': 'Level %d at night' % lv,
+        'LevelUpDusk': 'Level %d in the evening (7-8 pm)' % lv,
+        'LevelUpVersion': 'Level %d' % lv,
+        'LevelUpInverted': 'Level %d holding the Switch upside down' % lv,
+        'CriticalHitsInBattle': 'Land 3 critical hits in one battle',
+        'HitPointsLostInBattle': 'Lose 49+ HP without fainting, then pass under the Dusty Bowl rock arch',
+        'Spin': 'Spin around while it holds a Sweet',
+        'LevelUpNatureAmped': 'Level %d (its nature decides the form)' % lv,
+        'LevelUpNatureLowKey': 'Level %d (its nature decides the form)' % lv,
+        'TowerOfDarkness': 'Clear the Tower of Darkness (Isle of Armor)',
+        'TowerOfWaters': 'Clear the Tower of Waters (Isle of Armor)',
+    }.get(m)
+EVO_VER = {791: 'Sword', 792: 'Shield'}
+# Forms that aren't regional ones, by their own names.
+EVO_FORM = {('Lycanroc', 2): 'Dusk', ('Lycanroc', 1): 'Midnight', ('Rockruff', 1): 'Own Tempo', ('Toxtricity', 0): 'Amped',
+            ('Toxtricity', 1): 'Low Key', ('Polteageist', 1): 'Antique', ('Urshifu', 0): 'Single Strike',
+            ('Urshifu', 1): 'Rapid Strike'}
+def evoName(dex, form):
+    sp = SPECIES[dex]
+    if sp == 'Alcremie': return sp                # its creams: one species to own
+    if (sp, form) in EVO_FORM: return sp + (' (%s)' % EVO_FORM[(sp, form)] if EVO_FORM[(sp, form)] else '')
+    return spName(dex, form)    # Cosmoem: Solgaleo / Lunala
+evo_rows, seen = [], set()
+if os.path.exists(os.path.join(src, 'evolutions.json')):
+    for e in load('evolutions.json'):
+        t = evoText(e)
+        if not t: continue             # Feebas by beauty: not in this game
+        fn, tn = ascii(evoName(e['from'], e['from_form'])), ascii(evoName(e['to'], e['to_form']))
+        # The same form carries over (Alolan Vulpix -> Alolan Ninetales, East
+        # Sea Shellos -> East Sea Gastrodon).
+        if '(' in fn and e['to_form'] == e['from_form'] and (SPECIES[e['to']], e['to_form']) not in EVO_FORM:
+            tn = ascii(SPECIES[e['to']]) + fn[fn.index(' ('):]
+        row = (key(SPECIES[e['from']]), fn, key(SPECIES[e['to']]), tn, t, EVO_VER.get(e['to'], ''))
+        if row in seen: continue
+        seen.add(row)
+        evo_rows.append(row)
+        if e['method'] == 'LevelUpNinjask':     # Shedinja: the game's side effect, not in the table
+            evo_rows.append((row[0], row[1], 'shedinja', 'Shedinja',
+                             'Level %d with a free party slot and a spare Poke Ball' % e['level'], ''))
+    hdr = '''-- Every evolution in the game, from its own evolution table: what into
+-- what and how, in a short sentence (the evolutions panel, 47_evos.lua).
+-- Generated by dev/gen_romdata.py -- don't edit by hand.
+--   { from key, "From (form)", to key, "To (form)", how, version ("" = both) }
+
+SWSH = SWSH or {}
+
+SWSH.EVOS = {
+'''
+    out = os.path.join(root, 'lua', 'autorun', '09_evolutions.lua')
+    open(out, 'w', encoding='utf-8', newline='\n').write(hdr + ',\n'.join('    { %s }' % ', '.join(lua(v) for v in r) for r in evo_rows) + '\n}\n')
+    print(len(evo_rows), 'evolutions ->', out)
+else:
+    print('no evolutions.json: run pknx-export again')

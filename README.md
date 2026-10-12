@@ -106,8 +106,20 @@ same as a wild row's); hover for one sentence on how you get it (who gives
 it, after what; for a fixed one, the weather it needs). Regina's
 regional-form trades are left out: she moves around the Isle of Armor.
 
-Places with nothing say "No wild Pokemon here". The area is remembered across restarts;
-the list steps aside during battles. Setting *Show route information*: on,
+Places with nothing say "No wild Pokemon here". The area is remembered across restarts.
+
+The list is never shown in a battle. The reader keeps a state, *general* or
+*battle*, from the game's own lines: into battle on "You encountered a wild
+…!", "A wild … appeared!", "You are challenged by …!" (or any battle box or
+menu); out of it on how it ends — "Gotcha! … was caught!", "You got away
+safely!", "The wild … fled!", "The wild … fainted!", "You defeated …!", "You
+lost to …!", "You have no more Pokémon that can fight!" — once the battle box
+has gone. Your own Pokémon or a Trainer's fainting doesn't end it. An area
+banner or a game menu ends it too (neither can be in a battle).
+
+**Game menus** (X menu, bag, boxes, …): while the black bar of button hints
+is along the bottom, the overlays step aside — unless MCCP's own overlay is
+open. Setting *Show route information*: on,
 off, or overlay only. Data: `lua/autorun/08_areas.lua`, from the game's own
 encounter tables (a zone's surfing and flying tables are under the name the
 banner shows; its separate parts — high-level area, near the station, ... —
@@ -135,6 +147,18 @@ What it's for:
 
 The game files don't say when an area itself is reachable (that's in its map
 scripts), only these.
+
+## Evolutions you can get
+
+Turn on *Evolutions you can get*: a panel at the top middle listing every
+Pokémon you don't have yet that one you've caught (the Pokédex checklist's
+balls) evolves into, and how — from the game's own evolution table: level,
+stone, trade, trade holding an item, friendship (day / night), a move it must
+know, a party member, Sword/Shield's own (critical hits, the Dusty Bowl arch,
+spinning with a Sweet, the towers). Further steps count: with Charmander
+caught and Charmeleon not, Charizard is listed "via Charmeleon: Level 16,
+then Level 36". The wheel scrolls; a click opens the Bulbapedia page; the
+ball marks it caught (and it leaves the list); the X closes it.
 
 ## Pokédex checklist
 
@@ -175,6 +199,7 @@ both DLCs) with a ball to tick.
 | `[trainer] Pokemon Trainer Hop` | The trainer you're fighting, from the battle text. |
 | `[foe] Grookey Lv.5 of Pokemon Trainer Hop: exact stats, Hardy` | Their Pokémon was found in their team. |
 | `[area] Rolling Fields (Wild Area)` | The area banner was read (`(no wild Pokemon)` for a town). |
+| `[state] battle (a wild Skwovet)` | The battle state changed: `battle (Trainer Hop)`, `general (caught Skwovet)`, `general (beat Hop)`, `general (you ran away)`, `general (menu)`, ... |
 | `[progress] Grass Badge: 1 badge, catch up to Lv25 (beat Milo)` | A badge or key item was ticked (Story progress). |
 | `[dex] Wooloo caught (caught)` | A Pokédex checklist mark changed: `(caught)` from the text, `(ball by the HP bar)`, `(clicked)` by hand. |
 | `the OCR module isn't available ...` | `bin/ocr.dll` is missing or failed to load. |
@@ -190,7 +215,7 @@ put back in the money messages ("You got ₽400 for winning!").
 
 Settings: *Print what is read to the console*; *Read text outside battles too*
 (off: only battle text is printed); *Show both Pokemon's stats in battle*;
-*Gym Badges you hold* / *Key items you have* / *Progress editor* (Story progress); *Pokedex checklist*; *Show route information* (on / off / overlay only); and *Show
+*Gym Badges you hold* / *Key items you have* / *Progress editor* (Story progress); *Pokedex checklist*; *Evolutions you can get*; *Show route information* (on / off / overlay only); and *Show
 what the reader sees* (outlines the lines being read and shows the latest
 reading).
 

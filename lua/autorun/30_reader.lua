@@ -72,6 +72,12 @@ local function menuOpen(frame, sx, sy)    -- the battle menu's HP panel: white
     local lo, hi = probeRange(frame, SWSH.BATTLE.panel, sx, sy)
     return lo >= 200 and hi - lo <= 40
 end
+local function gameMenu(frame, sx, sy)   -- the hint bar: black and flat, the menu above it not
+    local lo, hi = probeRange(frame, SWSH.MENU.bar, sx, sy)
+    if not (hi <= 30 and hi - lo <= 12) then return false end
+    local _, above = probeRange(frame, SWSH.MENU.above, sx, sy)
+    return above >= 45                       -- a fade to black is no menu
+end
 local function sysOpen(frame, sx, sy)     -- mid-dark grey and flat
     local lo, hi = probeRange(frame, SWSH.SYS.ground, sx, sy)
     return hi <= 90 and lo >= 25 and hi - lo <= 25
@@ -122,6 +128,76 @@ local see                -- see(reading or nil), under "collect"
 local jobKind = {}       -- job id -> what it read ("box", "battle", "sys", "sub", "panel")
 local jobBall = {}       -- job id -> the owned ball was by the opponent's HP bar (panels)
 
+--------------------------------------------------------- battle state --
+-- "general" or "battle". Into battle on the game's opening lines (or any
+-- battle box / menu seen); out on its closing ones, once the box has been
+-- gone a moment (the EXP lines come after "fainted"). An area banner or a
+-- game menu can't be in a battle, so they end it too, and so does a long
+-- stretch with no battle box at all (a closing line missed).
+-- Phrases: commontl_std, btl_app (`pknx-export text`).
+S.state = "general"
+local END_GAP, STALE = 120, 1800          -- frames: 2 s without the box after the end, 30 s without any
+local function setState(st, why)
+    if S.state == st then return end
+    S.state = st
+    S.endFrame, S.startFrame = nil, frameNo
+    if st == "general" then S.foe = nil end
+    SWSH.log(SWSH.LV.dialogue, SWSH.C.system, "[state] ", SWSH.C.text, st .. " (" .. why .. ")")
+end
+-- How it starts: wild or Trainer, and who.
+local START = {
+    { "You encountered a very strong%-looking (.-)!", "wild" },
+    { "You encountered a wild (.-)!", "wild" },
+    { "A very strong%-looking (.-) appeared!", "wild" },
+    { "A wild (.-) appeared!", "wild" },
+    { "You are challenged by (.-)!", "trainer" },
+    { "(.-) would like to battle!", "trainer" },
+}
+-- How it ends (the first match). Not the end: your own Pokemon or a Trainer's
+-- fainting ("Grookey fainted!", "The opposing Wooloo fainted!"), "You
+-- couldn't get away!", "There's no running from a Trainer battle!".
+local FINISH = {
+    { "Gotcha! (.-) was caught!", "caught %s" },
+    { "(.-) was caught!", "caught %s" },
+    { "You got away safely!", "you ran away" },
+    { "The wild (.-) fled!", "the wild %s fled" },
+    { "The wild (.-) fainted!", "the wild %s fainted" },
+    { "You defeated (.-)!", "beat %s" },
+    { "You lost to (.-)!", "lost to %s" },
+    { "You have no more Pok.-mon that can fight", "lost: none of yours can fight" },
+    { "You panicked and dropped", "lost: none of yours can fight" },
+    { "was blown out of the den", "blown out of the den" },
+}
+local function battleText(lines)
+    local s = table.concat(lines, " "):gsub("’", "'"):gsub("%s+", " ")
+    for _, p in ipairs(START) do
+        local who = s:match(p[1])
+        if who then
+            S.foe = { kind = p[2], name = who }
+            if S.state ~= "battle" then
+                setState("battle", (p[2] == "wild" and "a wild " or "Trainer ") .. who)
+            end
+            S.endFrame = nil
+            return
+        end
+    end
+    if S.state ~= "battle" then return end
+    for _, p in ipairs(FINISH) do
+        local who = s:match(p[1])
+        if who then
+            S.endFrame, S.endWhy = frameNo, p[2]:format(who)
+            return
+        end
+    end
+end
+
+SWSH.onBattleStateText = battleText      -- for dev/sim.py's --say
+
+-- The battle under way: { kind = "wild" | "trainer", name } (nil when its
+-- opening line wasn't read), or nil outside one.
+function SWSH.battle() return S.state == "battle" and (S.foe or {}) or nil end
+
+
 function SWSH.mod:OnFrame(frame)
     frameNo = frameNo + 1
     if not ocr or frameNo % EVERY ~= 0 then return end
@@ -137,6 +213,10 @@ function SWSH.mod:OnFrame(frame)
     local sx, sy = frame:width() / SWSH.REF_W, frame:height() / SWSH.REF_H
     local all = SWSH.mod:get("read_all")    -- off: battle text only
     S.menu = menuOpen(frame, sx, sy)
+    if gameMenu(frame, sx, sy) then
+        S.gameMenuFrame = frameNo
+        setState("general", "menu")
+    end
     local kind, regions, ball = nil, {}, false
     if SWSH.mod:get("route_info") ~= "off" and bannerOpen(frame, sx, sy) then
         -- Entering an area: its name (50_route.lua).
@@ -160,6 +240,7 @@ function SWSH.mod:OnFrame(frame)
         -- Before the system box: its probes would match the battle band too.
         kind = "battle"
         S.battleFrame = frameNo
+        setState("battle", "battle box")
         for i, band in ipairs(SWSH.BATTLE.lines) do
             regions[#regions + 1] = region(i, SWSH.BATTLE.x0, SWSH.BATTLE.x1, band, sx, sy)
         end
@@ -175,6 +256,7 @@ function SWSH.mod:OnFrame(frame)
         see(nil)
         kind = "panel"
         S.battleFrame = frameNo
+        setState("battle", "battle menu")
         ball = ownedBall(frame, sx, sy)
         for side, p in pairs(SWSH.HPBOX) do
             for what, r in pairs(p) do
@@ -243,6 +325,7 @@ end
 local function emit(r)
     if S.logged and S.logged.text == r.text then return end
     S.logged = r
+    if r.kind == "battle" then battleText(r.lines) end
     if r.kind == "battle" and SWSH.onBattleText then SWSH.onBattleText(r.lines) end
     if SWSH.onCatchText then SWSH.onCatchText(r.lines) end
     if SWSH.onProgressText then SWSH.onProgressText(r.lines) end
@@ -259,6 +342,7 @@ local function apply(res)
         return
     end
     if kind == "area" then               -- the area banner, for 50_route
+        setState("general", "area banner")
         local got = {}
         for _, r in ipairs(res.regions) do
             local l = r.lines[1]
@@ -329,7 +413,22 @@ end
 -- A battle is on: its box or menu was up in the last ~4 s (the move
 -- animations between them show neither).
 function SWSH.inBattle()
-    return S.battleFrame ~= nil and frameNo - S.battleFrame < 240
+    if S.state == "battle" then
+        local since = frameNo - math.max(S.battleFrame or 0, S.startFrame or 0)
+        if (S.endFrame and since >= END_GAP) or since >= STALE then
+            setState("general", S.endFrame and S.endWhy or "no battle box for a while")
+        end
+    end
+    return S.state == "battle" or (S.battleFrame ~= nil and frameNo - S.battleFrame < 240)
+end
+
+-- A game menu is up (its hint bar seen just now): the overlays step aside,
+-- unless MCCP's own overlay is open (then you're using them).
+function SWSH.inMenu()
+    return S.gameMenuFrame ~= nil and frameNo - S.gameMenuFrame <= 2 * EVERY + 2
+end
+function SWSH.hideForMenu()
+    return SWSH.inMenu() and not (overlay.isOpen and overlay.isOpen())
 end
 
 function SWSH.mod:Think()

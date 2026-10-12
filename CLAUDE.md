@@ -72,5 +72,15 @@
   `SWSH.progress.cap()` / `.blocked(how, lo)` dim route rows; the battle panel
   warns on a wild foe above the cap. Area reachability is NOT in the game
   data we read -- don't claim it.
+- Battle state (30_reader): `S.state` "general"/"battle" from the game's
+  start/end lines (START / FINISH tables, btl_std phrases; wild vs trainer in
+  `SWSH.battle()`), battle box/menu = battle, area banner / game menu =
+  general, end applied once the box is gone 2 s, 30 s stale fallback.
+  `SWSH.inBattle()` hides the route list. Game menus: black hint bar
+  (`SWSH.MENU`), `SWSH.hideForMenu()` hides every panel unless MCCP's
+  overlay is open.
+- `47_evos.lua`: evolutions you can get from caught species; data
+  `09_evolutions.lua` from the game's evolution table (pknx-export
+  evolutions.json -> gen_romdata; Shedinja added by hand).
 - `45_dex.lua` is the Pokedex checklist, ported from pkmn_stats'
   `75_ui_dex.lua` (FRLG); caught marks in `data` file caught.txt by DEX key.

@@ -219,6 +219,7 @@ def main():
         L.globals().SWSH.onBattleText(L.table(line))
         L.globals().SWSH.onCatchText(L.table(line))       # as the reader's emit() does
         L.globals().SWSH.onProgressText(L.table(line))
+        L.globals().SWSH.onBattleStateText(L.table(line))
 
     for path in paths:
         print("==", os.path.basename(path))
@@ -243,10 +244,13 @@ def main():
             ops += [list(o.values()) for o in L.globals().sim_paint("swsh.dex").values()]
         if progress:
             ops += [list(o.values()) for o in L.globals().sim_paint("swsh.progress").values()]
+        if mod.settings["evolutions"]:
+            ops += [list(o.values()) for o in L.globals().sim_paint("swsh.evos").values()]
         if png:
             render(path, ops, png)
         # The picture goes away (a blank frame), so the next one prints afresh.
-        blank = Y * 0 + 40
+        # Mid grey: dark grey would pass for the battle box's ground.
+        blank = Y * 0 + 128
         fake.frame = blank
         blob = blank.tobytes() + UV.tobytes()
         for _ in range(30):

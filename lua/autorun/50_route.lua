@@ -200,6 +200,7 @@ local function visible()
     if mode == "off" or not (game.isActive("pkmn_sword") or game.isActive("pkmn_shield")) then return false end
     -- Nothing to say in a battle; out of the way of the enemy's HP panel.
     if SWSH.inBattle and SWSH.inBattle() then return false end
+    if SWSH.hideForMenu and SWSH.hideForMenu() then return false end   -- a game menu is up
     if mode == "overlay only" then return overlay.isOpen and overlay.isOpen() end
     return true
 end

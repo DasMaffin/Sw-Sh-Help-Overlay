@@ -157,4 +157,34 @@ var statics = FlatBufferConverter.DeserializeFrom<EncounterStaticArchive>(One(Ga
                             scenario = s.EncounterScenario.ToString(), gmax = s.CanGigantamax }).ToArray();
 Save("specials.json", new { gifts, trades, statics });
 Console.WriteLine($"{gifts.Length} gifts, {trades.Length} trades, {statics.Length} statics");
+
+// ---------------------------------------------------------- evolutions --
+// Every species and form's evolutions as the game has them: method (pkNX's
+// EvolutionType name), its argument resolved (item / move / species / type
+// name) and level; only between forms that are in the game.
+var types = rom.GetStrings(TextName.TypeNames);
+var evos = new List<object>();
+for (ushort sp = 1; sp <= 898; sp++)
+{
+    var b0 = (PersonalInfo8SWSH)personal.GetFormEntry(sp, 0);
+    for (byte f = 0; f < Math.Max((byte)1, b0.FormCount); f++)
+    {
+        var from = (PersonalInfo8SWSH)personal.GetFormEntry(sp, f);
+        if (!from.IsPresentInGame) continue;
+        foreach (var e in rom.Data.EvolutionData[personal.GetFormIndex(sp, f)].PossibleEvolutions)
+        {
+            if (!e.HasData) continue;
+            var tf = e.GetDestinationForm(f);
+            if (!((PersonalInfo8SWSH)personal.GetFormEntry(e.Species, tf)).IsPresentInGame) continue;
+            var m = e.Method.ToString();
+            string? arg = m.Contains("Item") || m.StartsWith("Trade") && m != "Trade" && m != "TradeShelmetKarrablast" ? At(items, e.Argument)
+                : m.Contains("KnowMove") ? At(moves, e.Argument)
+                : m == "LevelUpWithTeammate" ? At(species, e.Argument)
+                : m.Contains("MoveType") ? At(types, e.Argument) : null;
+            evos.Add(new { from = sp, from_form = f, to = e.Species, to_form = tf, method = m, arg, level = e.Level });
+        }
+    }
+}
+Save("evolutions.json", evos);
+Console.WriteLine($"{evos.Count} evolutions");
 return 0;

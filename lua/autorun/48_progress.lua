@@ -103,6 +103,7 @@ local U = 6.75
 local function width(s, size) return #tostring(s) * size end
 local function editorOpen()
     return SWSH.mod:get("progress_editor") == true and (game.isActive("pkmn_sword") or game.isActive("pkmn_shield"))
+           and not (SWSH.hideForMenu and SWSH.hideForMenu())
 end
 local function toggle(key, value)
     local out, found = {}, false
