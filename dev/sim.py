@@ -10,7 +10,8 @@ only battle text). --png DIR saves each picture with the overlays drawn on it (D
 pointer there (over a row: its "where to get it" card). --progress opens the
 progress editor and paints it. --area NAME acts as if its banner was read.
 --lua CODE runs a Lua snippet after that (a wheel turn, a click, a setting).
---say feeds a battle line to SWSH.onBattleText (and onCatchText) first, as if
+--say feeds a battle line to SWSH.onBattleText (and onCatchText, the battle
+state's and the catch odds' status reader) first, as if
 it had been read. After each picture the stats overlay is painted and what it
 would draw is printed as [draw] lines.
 
@@ -220,6 +221,7 @@ def main():
         L.globals().SWSH.onCatchText(L.table(line))       # as the reader's emit() does
         L.globals().SWSH.onProgressText(L.table(line))
         L.globals().SWSH.onBattleStateText(L.table(line))
+        L.globals().SWSH.onStatusText(L.table(line))
 
     for path in paths:
         print("==", os.path.basename(path))
@@ -238,7 +240,7 @@ def main():
             mod.Think(mod)
             mod.OnFrame(mod, frame)
         ops = [list(o.values()) for o in L.globals().sim_paint("swsh.stats").values()]
-        for el in ("swsh.route", "swsh.routeinfo"):
+        for el in ("swsh.route", "swsh.routeinfo", "swsh.catch"):
             ops += [list(o.values()) for o in L.globals().sim_paint(el).values()]
         if dex:
             ops += [list(o.values()) for o in L.globals().sim_paint("swsh.dex").values()]

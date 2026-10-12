@@ -63,6 +63,9 @@ end
 -- A name counts once it's read the same twice running (the banner slides in;
 -- a half-shown one reads as something else). A town with no wild Pokemon is
 -- still where you are: the list says so.
+-- The area you're in (its banner's name) and its SWSH.AREAS entry, or nil.
+function SWSH.where() return R.name, R.area end
+
 local last
 function SWSH.onArea(text, sub)
     if not text then last = nil return end

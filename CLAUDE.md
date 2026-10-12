@@ -85,3 +85,10 @@
   evolutions.json -> gen_romdata; Shedinja added by hand).
 - `45_dex.lua` is the Pokedex checklist, ported from pkmn_stats'
   `75_ui_dex.lua` (FRLG); caught marks in `data` file caught.txt by DEX key.
+- `55_catch.lua`: catch odds over the battle ball menu (X). Reader:
+  `SWSH.BALLS` probes + header OCR (key "ballmenu" in the panel job) ->
+  `SWSH.ballMenu()`; foe HP bar fill by chroma (`SWSH.FOEBAR`) ->
+  `S.foeBar`; turns (`SWSH.battleTurn()`, menu after battle text);
+  `SWSH.onStatusText` (wild foe status lines). Data `09_catch.lua`
+  (catch rate, weight) from pknx-export's forms.json via gen_romdata.
+  The formula is the game's code (not in pkNX/PKHeX): Gen 8 per Dragonfly Cave.

@@ -77,6 +77,37 @@ local function gameMenu(frame, sx, sy)   -- the hint bar: black and flat, the me
     local _, above = probeRange(frame, SWSH.MENU.above, sx, sy)
     return above >= 45                       -- a fade to black is no menu
 end
+-- The ball menu (X in a battle): a black header with the ball's name over a
+-- white description box, bottom right.
+local function ballMenu(frame, sx, sy)
+    local lo, hi = probeRange(frame, SWSH.BALLS.header, sx, sy)
+    if not (hi <= 25 and hi - lo <= 12) then return false end
+    lo, hi = probeRange(frame, SWSH.BALLS.paper, sx, sy)
+    return lo >= 220
+end
+-- How full the opponent's HP bar is: lo, hi as fractions (the chroma plane's
+-- half-size pixels make it a little uncertain), or nil without the panel.
+-- The fill is green, yellow or red -- all strongly coloured; the empty part
+-- is grey.
+local function foeBar(frame, sx, sy)
+    local b = SWSH.FOEBAR
+    local lo = probeRange(frame, { { y = b.above, x0 = b.x0, x1 = b.x1 } }, sx, sy)
+    if lo < 190 then return nil end              -- not the white panel
+    -- From a few pixels in (the edge's chroma is half white), to the end.
+    local left, w = b.x0 * sx, (b.x1 - b.x0) * sx
+    local x0 = math.floor((b.x0 + 4) * sx / 2) * 2
+    local s = frame:region(x0, frame:height() + math.floor(b.y * sy / 2),
+                           math.floor((b.x1 * sx - x0) / 2) * 2, 1)
+    local n = 0
+    for i = 1, #s - 1, 2 do
+        local u, v = s:byte(i), s:byte(i + 1)
+        if math.abs(u - 128) + math.abs(v - 128) < 40 then break end
+        n = n + 2
+    end
+    if n == 0 then return 0, math.min(1, (x0 + 2 - left) / w) end
+    local fill = x0 - left + n
+    return math.max(0, (fill - 3) / w), math.min(1, (fill + 3) / w)
+end
 local function sysOpen(frame, sx, sy)     -- mid-dark grey and flat
     local lo, hi = probeRange(frame, SWSH.SYS.ground, sx, sy)
     return hi <= 90 and lo >= 25 and hi - lo <= 25
@@ -136,6 +167,9 @@ local function setState(st, why)
     if S.state == st then return end
     S.state = st
     if st == "general" then S.foe = nil end
+    if st == "battle" then
+        S.battleNo, S.turn, S.textSinceMenu = (S.battleNo or 0) + 1, 0, true
+    end
     SWSH.log(SWSH.LV.dialogue, SWSH.C.system, "[state] ", SWSH.C.text, st .. " (" .. why .. ")")
 end
 -- How it starts: wild or Trainer, and who.
@@ -173,6 +207,7 @@ local FAILED = { "But it failed", "avoided the attack", "doesn.t affect", "ancho
                  "anchored itself", "protected itself", "missed", "Substitute took" }
 local forced = false          -- a battle just ended by FORCE: can still be taken back
 local function battleText(lines)
+    S.textSinceMenu = true
     local s = table.concat(lines, " "):gsub("’", "'"):gsub("%s+", " ")
     for _, p in ipairs(START) do
         local who = s:match(p[1])
@@ -186,8 +221,9 @@ local function battleText(lines)
         forced = false
         for _, f in ipairs(FAILED) do
             if s:find(f) then
-                setState("battle", "the move didn't work")
-                S.foe = S.lastFoe
+                -- The same battle goes on: turn and status kept.
+                S.state, S.foe = "battle", S.lastFoe
+                SWSH.log(SWSH.LV.dialogue, SWSH.C.system, "[state] ", SWSH.C.text, "battle (the move didn't work)")
                 return
             end
         end
@@ -218,6 +254,15 @@ SWSH.onBattleStateText = battleText      -- for dev/sim.py's --say
 -- The battle under way: { kind = "wild" | "trainer", name } (nil when its
 -- opening line wasn't read), or nil outside one.
 function SWSH.battleState() return S.state == "battle" and (S.foe or {}) or nil end
+-- The turn of the battle: 1 at its first battle menu, +1 at each menu that
+-- follows battle text (backing out of the bag or party adds none); nil
+-- outside a battle or before its first menu.
+function SWSH.battleTurn() return S.state == "battle" and S.turn and S.turn > 0 and S.turn or nil end
+-- The ball menu is up: the ball's name as read ("Poke Balls"), or "" before
+-- it is read.
+function SWSH.ballMenu()
+    return S.ballFrame ~= nil and frameNo - S.ballFrame <= 2 * EVERY + 2 and (S.ballName or "") or nil
+end
 
 
 function SWSH.mod:OnFrame(frame)
@@ -234,7 +279,15 @@ function SWSH.mod:OnFrame(frame)
 
     local sx, sy = frame:width() / SWSH.REF_W, frame:height() / SWSH.REF_H
     local all = SWSH.mod:get("read_all")    -- off: battle text only
+    local wasMenu = S.menu
     S.menu = menuOpen(frame, sx, sy)
+    if S.menu and not wasMenu and S.state == "battle" and S.textSinceMenu then
+        S.turn, S.textSinceMenu = (S.turn or 0) + 1, false
+    end
+    if S.menu then
+        local lo, hi = foeBar(frame, sx, sy)
+        if lo then S.foeBar = { lo = lo, hi = hi } end
+    end
     if gameMenu(frame, sx, sy) then S.gameMenuFrame = frameNo end
     local kind, regions, ball = nil, {}, false
     if SWSH.mod:get("route_info") ~= "off" and bannerOpen(frame, sx, sy) then
@@ -273,6 +326,11 @@ function SWSH.mod:OnFrame(frame)
         see(nil)
         kind = "panel"
         ball = ownedBall(frame, sx, sy)
+        if ballMenu(frame, sx, sy) then
+            S.ballFrame = frameNo
+            local r = SWSH.BALLS.name
+            regions[#regions + 1] = region("ballmenu", r.x0, r.x1, { r.y0, r.y1 }, sx, sy)
+        end
         for side, p in pairs(SWSH.HPBOX) do
             for what, r in pairs(p) do
                 regions[#regions + 1] = region(side .. "." .. what, r.x0, r.x1, { r.y0, r.y1 }, sx, sy)
@@ -342,6 +400,7 @@ local function emit(r)
     S.logged = r
     if r.kind == "battle" then battleText(r.lines) end
     if r.kind == "battle" and SWSH.onBattleText then SWSH.onBattleText(r.lines) end
+    if r.kind == "battle" and SWSH.onStatusText then SWSH.onStatusText(r.lines) end
     if SWSH.onCatchText then SWSH.onCatchText(r.lines) end
     if SWSH.onProgressText then SWSH.onProgressText(r.lines) end
     if SWSH.mod:get("log_text") and (r.kind == "battle" or SWSH.mod:get("read_all")) then
@@ -372,6 +431,7 @@ local function apply(res)
             if l and l.score >= MIN_SCORE then got[r.key] = l.text end
         end
         got.ball = ball
+        if got.ballmenu then S.ballName = got.ballmenu end
         if SWSH.onPanels then SWSH.onPanels(got) end
         return
     end

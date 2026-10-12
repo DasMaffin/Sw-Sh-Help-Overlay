@@ -48,6 +48,13 @@ function C.set(e, on, how)
 end
 function C.mark(e, how) C.set(e, true, how) end
 function C.toggle(e) C.set(e, not C.has(e), "clicked") end
+-- How many species are marked: the Pokedex's "caught" count, as far as known.
+function C.count()
+    load()
+    local n = 0
+    for _ in pairs(known) do n = n + 1 end
+    return n
+end
 
 -------------------------------------------------------------- drawing --
 local function width(s, size) return #tostring(s) * size end

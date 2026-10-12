@@ -68,6 +68,38 @@ Before a level is read the rows are base stats ("base stats" in the title
 bar). A name that isn't a species — a nickname — shows as "not in the
 Pokédex". A species with a Galarian form shows that form.
 
+## Catch odds
+
+In a wild battle, press X: the game's ball menu opens (one ball at a time,
+bottom right). Right above it the overlay shows the chance **that** ball
+catches the wild Pokémon, as a range — e.g. `Poke Ball  77 - 81%` — and,
+beside it, what went into it.
+
+- **HP**: its max HP is known only as a range (its level and base HP over
+  IVs 0–31; wild Pokémon have no EVs). Its current HP comes from how full
+  its HP bar is, read off the picture — so the odds are lowest-to-highest
+  over every max HP and current HP that bar could mean.
+- **Status**: read from the battle text — "The wild … fell asleep!", "was
+  poisoned!", "is paralyzed!", "was burned!", "was frozen solid!" — until it
+  "woke up!", "thawed out!" or is cured; sleep / freeze ×2.5, the others ×1.5.
+- **The ball**, read off the menu's header: Great ×1.5, Ultra ×2, Master
+  always; Net (Water / Bug), Nest (its level), Level (your Pokémon's
+  level), Repeat (caught before — the Pokédex checklist), Quick (turn 1) and
+  Timer (turns counted from the battle menus), Dusk (in a cave, or at night
+  by your PC's clock — the Switch normally has the same), Fast (base Speed
+  100+), Heavy (its weight), Moon (Moon Stone evolvers), Dream (asleep),
+  Love (your Pokémon is its species: ×8 if the other gender — not read, so
+  both), Dive / Lure (on water / fished: from how it's met where you are;
+  both if it can be either), Beast ×0.1.
+- **The rest of Gen 8's formula**: catch rate and weight from the game's
+  data (`09_catch.lua`); ×(30−level)/10 under Lv20; ×0.1 while you have
+  under 8 badges and your Pokémon is the lower level; critical captures by
+  how many species you've caught (the checklist's count; the Catching Charm
+  isn't known, so it's left out). Above your badges' level cap: "Too strong
+  to catch".
+
+Not in a Trainer battle. Setting: *Catch odds in the ball menu* (on).
+
 ## Route information
 
 On entering an area the game shows its name bottom right ("Rolling Fields",
@@ -201,6 +233,7 @@ both DLCs) with a ball to tick.
 | `[you] Scorbunny Lv.6` | A level read off an HP panel (`[foe]` for theirs). |
 | `[trainer] Pokemon Trainer Hop` | The trainer you're fighting, from the battle text. |
 | `[foe] Grookey Lv.5 of Pokemon Trainer Hop: exact stats, Hardy` | Their Pokémon was found in their team. |
+| `[foe] status: asleep` | The wild Pokémon's status, from the battle text (catch odds); `none` once cured. |
 | `[area] Rolling Fields (Wild Area)` | The area banner was read (`(no wild Pokemon)` for a town). |
 | `[state] battle (a wild Skwovet)` | The battle state changed: `battle (Trainer Hop)`, `general (caught Skwovet)`, `general (beat Hop)`, `general (you ran away)`, `general (The wild Pancham used Circle Throw)`, ... |
 | `[progress] Grass Badge: 1 badge, catch up to Lv25 (beat Milo)` | A badge or key item was ticked (Story progress). |
@@ -218,7 +251,7 @@ put back in the money messages ("You got ₽400 for winning!").
 
 Settings: *Print what is read to the console*; *Read text outside battles too*
 (off: only battle text is printed); *Show both Pokemon's stats in battle*;
-*Gym Badges you hold* / *Key items you have* / *Progress editor* (Story progress); *Pokedex checklist*; *Evolutions you can get*; *Show route information* (on / off / overlay only); and *Show
+*Gym Badges you hold* / *Key items you have* / *Progress editor* (Story progress); *Pokedex checklist*; *Evolutions you can get*; *Catch odds in the ball menu*; *Show route information* (on / off / overlay only); and *Show
 what the reader sees* (outlines the lines being read and shows the latest
 reading).
 

@@ -66,6 +66,8 @@ SWSH.mod:addSetting("badges", "Gym Badges you hold", "multi",
 SWSH.mod:addSetting("key_items", "Key items you have", "multi", { "Fishing Rod", "Rotom Bike Water Mode" })
 -- A panel to tick both by click, for when a read was missed; its X turns it off.
 SWSH.mod:addSetting("progress_editor", "Progress editor (badges, key items)", "bool", nil, false)
+-- Catch odds over the ball menu (55_catch.lua).
+SWSH.mod:addSetting("catch_calc", "Catch odds in the ball menu", "bool", nil, true)
 -- Outlines the lines being read and shows the latest reading over the picture.
 SWSH.mod:addSetting("debug", "Show what the reader sees", "bool", nil, false)
 
@@ -126,6 +128,18 @@ SWSH.HPBOX = {
 -- before. A red ring (V ~200 in chroma) on the white panel (V 128); two rows
 -- across it, above and below its centre band.
 SWSH.OWNED = { x0 = 1868, x1 = 1910, rows = { 92, 108 } }
+
+-- The opponent's HP bar (top right): the fill's row, and the white panel
+-- just above it.
+SWSH.FOEBAR = { x0 = 1468, x1 = 1868, y = 101, above = 91 }
+
+-- The ball menu (X in a battle), bottom right: a black header with the
+-- ball's icon, name ("Poke Balls") and count, a white description box below.
+SWSH.BALLS = {
+    name   = { x0 = 1320, x1 = 1712, y0 = 678, y1 = 734 },
+    header = { { y = 676, x0 = 1150, x1 = 1900 }, { y = 732, x0 = 1150, x1 = 1900 } },
+    paper  = { { y = 750, x0 = 1150, x1 = 1900 }, { x = 1160, y0 = 750, y1 = 985 } },
+}
 
 -- The area banner, shown a few seconds on entering an area: the name in white
 -- on a flat magenta band at the bottom right ("Rolling Fields"), the region

@@ -110,6 +110,30 @@ for (ushort sp = 1; sp < species.Length && sp <= 898; sp++)
     });
 }
 Save("species.json", dex);
+
+// Per species and form in the game: types, catch rate, weight (0.1 kg) and
+// base Speed (the catch-rate calculator's balls), and the level-up moves.
+var types0 = rom.GetStrings(TextName.TypeNames);
+var formsOut = new List<object>();
+for (ushort sp = 1; sp < species.Length && sp <= 898; sp++)
+{
+    var b0 = (PersonalInfo8SWSH)personal.GetFormEntry(sp, 0);
+    for (byte f = 0; f < Math.Max((byte)1, b0.FormCount); f++)
+    {
+        var pi = (PersonalInfo8SWSH)personal.GetFormEntry(sp, f);
+        if (!pi.IsPresentInGame) continue;
+        var ls = rom.Data.LevelUpData[personal.GetFormIndex(sp, f)];
+        formsOut.Add(new
+        {
+            dex = sp, form = f, species = species[sp],
+            types = new[] { At(types0, (int)pi.Type1), At(types0, (int)pi.Type2) }.Distinct().ToArray(),
+            @catch = pi.CatchRate, weight = pi.Weight, spe = pi.SPE,
+            moves = ls.Moves.Select((m, i) => new { lv = ls.Levels[i], move = At(moves, m) }).ToArray(),
+        });
+    }
+}
+Save("forms.json", formsOut);
+Console.WriteLine($"{formsOut.Count} forms");
 Console.WriteLine($"{dex.Count} species");
 
 // -------------------------------------------------------------- wilds --
