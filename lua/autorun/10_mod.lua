@@ -62,6 +62,8 @@ SWSH.mod:addSetting("pokedex", "Pokedex checklist", "bool", nil, false)
 SWSH.mod:addSetting("badges", "Gym Badges you hold", "multi",
                     { "Grass", "Water", "Fire", "Fighting", "Ghost", "Fairy", "Rock", "Ice", "Dark", "Dragon" })
 SWSH.mod:addSetting("key_items", "Key items you have", "multi", { "Fishing Rod", "Rotom Bike Water Mode" })
+-- A panel to tick both by click, for when a read was missed; its X turns it off.
+SWSH.mod:addSetting("progress_editor", "Progress editor (badges, key items)", "bool", nil, false)
 -- Outlines the lines being read and shows the latest reading over the picture.
 SWSH.mod:addSetting("debug", "Show what the reader sees", "bool", nil, false)
 

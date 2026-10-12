@@ -7,7 +7,9 @@
 --all turns on the "read_all" setting (dialogue, system and cutscene text, not
 only battle text). --png DIR saves each picture with the overlays drawn on it (DIR/<name>.png).
 --dex opens the Pokedex checklist and paints it too; --hover X,Y puts the
-pointer there (over a row: its "where to get it" card).
+pointer there (over a row: its "where to get it" card). --progress opens the
+progress editor and paints it. --area NAME acts as if its banner was read.
+--lua CODE runs a Lua snippet after that (a wheel turn, a click, a setting).
 --say feeds a battle line to SWSH.onBattleText (and onCatchText) first, as if
 it had been read. After each picture the stats overlay is painted and what it
 would draw is printed as [draw] lines.
@@ -177,12 +179,15 @@ def render(path, ops, outdir):
 
 def main():
     args, say, read_all, png, dex, hover, area = sys.argv[1:], [], False, None, False, None, None
+    lua, progress = [], False
     while args and args[0].startswith("--"):
         a = args.pop(0)
         if a == "--all": read_all = True
         elif a == "--say": say.append(args.pop(0))
         elif a == "--png": png = args.pop(0)
         elif a == "--dex": dex = True
+        elif a == "--progress": progress = True
+        elif a == "--lua": lua.append(args.pop(0))
         elif a == "--area": area = args.pop(0)
         elif a == "--hover": hover = [float(v) for v in args.pop(0).split(",")]
     paths = args or sorted(p for p in glob.glob(os.path.join(ROOT, "dev", "samples", "*.*"))
@@ -202,10 +207,13 @@ def main():
     mod.settings["pokedex"] = dex
     if hover:
         L.globals().overlay.mouse = L.table(*hover)
-        for el in ("swsh.dex", "swsh.route"):
+        for el in ("swsh.dex", "swsh.route", "swsh.progress"):
             L.globals().overlay.elements[el].hovered = True
     if area:                                              # as if its banner was read (twice)
         for _ in range(2): L.globals().SWSH.onArea(area, "")
+    mod.settings["progress_editor"] = progress
+    for code in lua:                                      # e.g. a wheel turn or a click, after the area
+        L.execute(code)
     for line in say:
         print("== say:", line)
         L.globals().SWSH.onBattleText(L.table(line))
@@ -233,6 +241,8 @@ def main():
             ops += [list(o.values()) for o in L.globals().sim_paint(el).values()]
         if dex:
             ops += [list(o.values()) for o in L.globals().sim_paint("swsh.dex").values()]
+        if progress:
+            ops += [list(o.values()) for o in L.globals().sim_paint("swsh.progress").values()]
         if png:
             render(path, ops, png)
         # The picture goes away (a blank frame), so the next one prints afresh.

@@ -353,15 +353,45 @@ def weatherText(w):
     return '/'.join(b for b in BASE_WX if b in got)
 # A place inside another: listed under both banners.
 INSIDE = {'Battle Tower': ['Wyndon'], 'Master Dojo': ['Fields of Honor'], 'Wild Area Station': ['Rolling Fields']}
-GIFT_HOW = {'Grookey': 'Starter from Leon (choose one)', 'Scorbunny': 'Starter from Leon (choose one)',
-            'Sobble': 'Starter from Leon (choose one)', 'Charmander': "From Leon's house, once you're Champion",
-            'Type: Null': 'Gift at the Battle Tower, after the story', 'Toxel': 'From the Pokemon Nursery worker',
-            'Pikachu': "Gigantamax Pikachu, with a Let's Go Pikachu save", 'Eevee': "Gigantamax Eevee, with a Let's Go Eevee save",
-            'Dracozolt': 'Cara Liss restores it from two fossils', 'Arctozolt': 'Cara Liss restores it from two fossils',
-            'Dracovish': 'Cara Liss restores it from two fossils', 'Arctovish': 'Cara Liss restores it from two fossils',
-            'Bulbasaur': 'From Mustard (choose Bulbasaur or Squirtle)', 'Squirtle': 'From Mustard (choose Bulbasaur or Squirtle)',
-            'Kubfu': 'From Mustard', 'Glastrier': 'Choose Glastrier or Spectrier', 'Spectrier': 'Choose Glastrier or Spectrier',
-            'Cosmog': 'From a man in Freezington'}
+# One sentence each on how you get it (the game's scripts aren't read: by hand).
+DIG = 'The Diglett hunter in the Fields of Honor gives it once you have found %d of the Alolan Diglett.'
+GIFT_HOW = {'Grookey': 'Leon lets you choose one of the three at the very start of the game.',
+            'Scorbunny': 'Leon lets you choose one of the three at the very start of the game.',
+            'Sobble': 'Leon lets you choose one of the three at the very start of the game.',
+            'Charmander': "Leon gives it at his house in Postwick once you're Champion.",
+            'Type: Null': 'Given at the Battle Tower in Wyndon after the post-game story.',
+            'Toxel': 'The Pokemon Nursery worker on Route 5 gives you a Toxel Egg.',
+            'Pikachu': "A man in the Wild Area Station gives it if the Switch has a Let's Go Pikachu save.",
+            'Eevee': "A man in the Wild Area Station gives it if the Switch has a Let's Go Eevee save.",
+            'Dracozolt': 'Cara Liss on Route 6 restores it from a Fossilized Bird and a Fossilized Drake.',
+            'Arctozolt': 'Cara Liss on Route 6 restores it from a Fossilized Bird and a Fossilized Dino.',
+            'Dracovish': 'Cara Liss on Route 6 restores it from a Fossilized Fish and a Fossilized Drake.',
+            'Arctovish': 'Cara Liss on Route 6 restores it from a Fossilized Fish and a Fossilized Dino.',
+            'Bulbasaur': "Mustard lets you choose it or Squirtle after the dojo's first trial.",
+            'Squirtle': "Mustard lets you choose it or Bulbasaur after the dojo's first trial.",
+            'Kubfu': "Mustard gives it to you during the Isle of Armor story, after the dojo's trials.",
+            'Porygon': 'Given at the Master Dojo after you beat Mustard at the end of the Isle of Armor story.',
+            'Meowth (Alolan)': DIG % 5, 'Slowpoke': DIG % 10, 'Vulpix (Alolan)': DIG % 20,
+            'Sandshrew (Alolan)': DIG % 30, 'Raichu (Alolan)': DIG % 40, 'Marowak (Alolan)': DIG % 50,
+            'Exeggutor (Alolan)': DIG % 75, 'Diglett (Alolan)': DIG % 150,
+            'Rowlet': DIG % 100 + ' Only if your starter was Grookey.',
+            'Litten': DIG % 100 + ' Only if your starter was Scorbunny.',
+            'Popplio': DIG % 100 + ' Only if your starter was Sobble.',
+            'Glastrier': 'Crown Tundra story: grow the Iceroot Carrot to call it to the shrine. You get it or Spectrier, not both.',
+            'Spectrier': 'Crown Tundra story: grow the Shaderoot Carrot to call it to the shrine. You get it or Glastrier, not both.',
+            'Cosmog': 'An old woman in a Freezington house gives it after the Crown Tundra story.',
+            'Poipole': 'Given in the Max Lair once you have caught Ultra Beasts on Dynamax Adventures, after the Crown Tundra story.'}
+# Legendaries waiting in one place (keyed by species).
+BIRD = 'After the Crown Tundra story, Peony sends you to Dyna Tree Hill; then it roams here. Chase it down to battle.'
+SWORDS = "After the Crown Tundra story, follow its footprints; it waits here for you."
+REGI = "After the Crown Tundra story, solve the Giant's Bed temple's puzzle, then this ruin's puzzle to wake it."
+LEGEND_HOW = {'Articuno': BIRD, 'Zapdos': BIRD, 'Moltres': BIRD, 'Cobalion': SWORDS, 'Terrakion': SWORDS, 'Virizion': SWORDS,
+              'Keldeo': 'Appears here once you have caught Cobalion, Terrakion and Virizion.',
+              'Regirock': REGI, 'Regice': REGI, 'Registeel': REGI,
+              'Regieleki': "Solve the puzzle here and choose it or Regidrago; you only get one.",
+              'Regidrago': "Solve the puzzle here and choose it or Regieleki; you only get one.",
+              'Regigigas': "Bring Regirock, Regice, Registeel, Regieleki and Regidrago to the temple.",
+              'Calyrex': 'Crown Tundra story: battle it at the shrine once its steed is back.'}
 LEGEND = {144, 145, 146, 377, 378, 379, 486, 638, 639, 640, 647, 894, 895, 896, 897, 898}
 specials = defaultdict(list)          # banner -> [(key, name, tag, how, lv, ver)]
 def addSpecial(places, n, tag, how, lv, ver):
@@ -393,7 +423,10 @@ if os.path.exists(os.path.join(pk, 'Encounters8.cs')):
         if gift:
             addSpecial(places, n, 'Gift', GIFT_HOW.get(n, 'Gift'), lv, ver)
         else:
-            how = ('Legendary, fixed' if dex in LEGEND else 'Fixed overworld Pokemon') + (', weather: ' + wx if wx else '')
+            sp = n.split(' (')[0]
+            how = LEGEND_HOW.get(sp) or ('A strong one stands in the open here; walk into it to battle'
+                                         + (' (only in %s weather).' % wx if wx else '.'))
+            if dex in LEGEND and sp in LEGEND_HOW: how = 'Legendary. ' + how
             addSpecial(places, n, 'Static', how, lv, ver)
 else:
     print('no ROMs/pkhex/Encounters8.cs: gifts and statics left out')
@@ -403,15 +436,15 @@ else:
 TRADE_AT = {12: 'Turffield', 13: 'Motostoke', 14: 'Hulbury', 15: 'Hammerlocke', 16: 'Stow-on-Side',
             17: 'Stow-on-Side', 18: 'Ballonlea', 19: 'Circhester', 20: 'Circhester', 21: 'Spikemuth', 22: 'Wyndon'}
 TRADE_VER = {16: 'Sword', 17: 'Shield', 19: 'Sword', 20: 'Shield'}
-TRADE_WHERE = {12: 'Turffield Gym lobby', 13: 'Pokemon Center', 14: 'by the market', 15: 'outside the Vault',
-               16: 'on a rooftop', 17: 'on a rooftop', 18: 'Gym entrance hall', 21: 'end of town, behind a stall',
+TRADE_WHERE = {12: 'in the Gym lobby', 13: 'in the Pokemon Center', 14: 'by the market', 15: 'outside the Vault',
+               16: 'on a rooftop', 17: 'on a rooftop', 18: 'in the Gym entrance hall', 21: 'behind a stall at the end of town',
                22: 'in a house'}
 for t in load('specials.json')['trades']:
     if t['i'] not in TRADE_AT: continue
     want = spName(next(d for d, s in SPECIES.items() if s == t['wants']), t['wants_form'])
     where = TRADE_WHERE.get(t['i'])
     addSpecial([TRADE_AT[t['i']]], spName(t['dex'], t['form']), 'Trade',
-               'Trade a %s for it' % ascii(want) + (' (%s)' % where if where else ''), t['level'], TRADE_VER.get(t['i'], ''))
+               'Someone %s will trade it for your %s.' % (where or 'here', ascii(want)), t['level'], TRADE_VER.get(t['i'], ''))
 
 out_rows = []
 for b in sorted(specials):

@@ -94,3 +94,92 @@ function SWSH.onProgressText(lines)
                  "too strong to catch with " .. P.badges() .. " badges (catch up to Lv" .. P.cap() .. ")")
     end
 end
+
+--------------------------------------------------------- the editor --
+-- The setting "Progress editor" opens a panel in the middle of the screen:
+-- every badge and key item as a box to click, for when a read was missed (or
+-- a wrong one ticked). Its X turns the setting back off.
+local U = 6.75
+local function width(s, size) return #tostring(s) * size end
+local function editorOpen()
+    return SWSH.mod:get("progress_editor") == true and (game.isActive("pkmn_sword") or game.isActive("pkmn_shield"))
+end
+local function toggle(key, value)
+    local out, found = {}, false
+    for _, v in ipairs(SWSH.mod:get(key) or {}) do
+        if v == value then found = true else out[#out + 1] = v end
+    end
+    if not found then out[#out + 1] = value end
+    SWSH.mod:set(key, out)
+end
+
+-- Boxes: { key, value, label, x, y, w, h } in screen pixels, plus the X.
+local function editorLayout(sw, sh)
+    local u = U * sh / SWSH.REF_H
+    local W, H = 58 * u, 39.6 * u
+    local x, y = (sw - W) / 2, (sh - H) / 2
+    local boxes = {}
+    for i, b in ipairs(SWSH.BADGES) do
+        local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
+        boxes[#boxes + 1] = { "badges", b, b .. " Badge", x + (1.4 + col * 28) * u, y + (10.4 + row * 2.8) * u, 26 * u, 2.4 * u }
+    end
+    for i, it in ipairs(SWSH.ITEMS) do
+        boxes[#boxes + 1] = { "key_items", it, it, x + 1.4 * u, y + (28.4 + (i - 1) * 2.8) * u, 54 * u, 2.4 * u }
+    end
+    return { x = x, y = y, W = W, H = H, u = u, boxes = boxes, close = { x + W - 3.8 * u, y + 1.0 * u, 2.4 * u, 2.4 * u } }
+end
+local function hit(r, mx, my) return mx >= r[1] and mx < r[1] + r[3] and my >= r[2] and my < r[2] + r[4] end
+local function rectOf(b) return { b[4], b[5], b[6], b[7] } end
+
+overlay.add("swsh.progress", {
+    mode = "pinned",
+    OnMouseDown = function(self, lx, ly, btn)
+        if btn ~= 1 or not editorOpen() then return end
+        local L = editorLayout(overlay.screenW(), overlay.screenH())
+        local mx, my = lx + (self.x or 0), ly + (self.y or 0)
+        if hit(L.close, mx, my) then SWSH.mod:set("progress_editor", false) return end
+        for _, b in ipairs(L.boxes) do
+            if hit(rectOf(b), mx, my) then toggle(b[1], b[2]) return end
+        end
+    end,
+    paint = function(d)
+        if not editorOpen() then return end
+        local L = editorLayout(d:w(), d:h())
+        local x, y, W, H, u = L.x, L.y, L.W, L.H, L.u
+        local mx, my = overlay.mouseX and overlay.mouseX() or -1, overlay.mouseY and overlay.mouseY() or -1
+        d:rect(x, y, W, H, 20, 22, 32, 240)
+        d:outline(x, y, W, H, 120, 130, 165, 255)
+        d:rect(x, y, W, 4.4 * u, 40, 46, 64, 240)
+        d:text(x + 1.4 * u, y + 1.1 * u, "Story progress", 2.2 * u, 238, 242, 252, 255)
+        local hotX = hit(L.close, mx, my)
+        d:text(L.close[1] + 0.6 * u, L.close[2] + 0.2 * u, "X", 2.0 * u, hotX and 255 or 190, 200, hotX and 200 or 215, 255)
+        d:text(x + 1.4 * u, y + 5.4 * u, "Click to fix what the reader missed.", 1.5 * u, 150, 158, 180, 255)
+        d:text(x + 1.4 * u, y + 8.0 * u, "Gym Badges", 1.6 * u, 225, 205, 150, 255)
+        d:text(x + 1.4 * u, y + 26.0 * u, "Key items", 1.6 * u, 225, 205, 150, 255)
+        local have = {}
+        for _, k in ipairs({ "badges", "key_items" }) do
+            for _, v in ipairs(SWSH.mod:get(k) or {}) do have[k .. v] = true end
+        end
+        for _, b in ipairs(L.boxes) do
+            local on, hot = have[b[1] .. b[2]], hit(rectOf(b), mx, my)
+            if hot then d:rect(b[4] - 0.4 * u, b[5] - 0.3 * u, b[6], b[7], 58, 66, 92, 255) end
+            local s = 1.6 * u
+            d:outline(b[4], b[5] + 0.1 * u, s, s, 150, 165, 205, 255)
+            if on then d:rect(b[4] + 0.35 * u, b[5] + 0.45 * u, s - 0.7 * u, s - 0.7 * u, 140, 215, 160, 255) end
+            local c = on and 232 or 160
+            d:text(b[4] + 2.6 * u, b[5], b[3], 1.6 * u, c - 6, c, math.min(255, c + 20), 255)
+        end
+        -- What it adds up to.
+        local n = P.badges()
+        d:text(x + 1.4 * u, y + 35.8 * u, n .. (n == 1 and " badge" or " badges") .. ": catch up to "
+               .. (n == 8 and "any level" or ("Lv" .. P.cap())), 1.6 * u, 200, 206, 220, 255)
+    end,
+})
+
+hook.Add("OverlayElement", "swsh.progressRegion", function(el)
+    if el.id ~= "swsh.progress" then return end
+    if not editorOpen() then el.hidden = true return end
+    local L = editorLayout(overlay.screenW(), overlay.screenH())
+    el.hidden = false
+    el.x, el.y, el.w, el.h = L.x, L.y, L.W, L.H
+end)

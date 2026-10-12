@@ -62,6 +62,12 @@
 - Story progress (`48_progress.lua`): settings `badges` / `key_items`
   ("multi"), ticked by `SWSH.onProgressText` (reader emit, every kind --
   dialogue/system boxes are ALWAYS read now, printed only with read_all).
+  Setting `progress_editor` opens a click-to-toggle panel (same file).
+  Route list: ways needing a missing rod / Water Mode leave the list for
+  "Requires ..." rows (hover lists them; species in both if met both ways);
+  only those two are certain -- high-level parts stay. List scrolls (OnWheel),
+  filter button All/Missing/Caught (data file routefilter.txt). Specials'
+  how = one sentence each, by hand in gen_romdata (GIFT_HOW, LEGEND_HOW).
   `SWSH.progress.cap()` / `.blocked(how, lo)` dim route rows; the battle panel
   warns on a wild foe above the cap. Area reachability is NOT in the game
   data we read -- don't claim it.

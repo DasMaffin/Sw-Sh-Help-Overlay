@@ -54,6 +54,7 @@ end
 local function set(name, how)
     if name == R.name then return end
     R.name, R.area, R.special = name, SWSH.AREAS[name], (SWSH.SPECIALS or {})[name]
+    R.changed = true                     -- the list starts at its top again
     if data and data.write and how ~= "remembered" then data.write(FILE, name) end
     SWSH.log(SWSH.LV.dialogue, SWSH.C.system, "[area] ", SWSH.C.text,
              name .. (R.area and (" (" .. R.area.region .. ")") or (R.special and "" or " (no wild Pokemon)")))
@@ -175,6 +176,25 @@ local BALL_PAD = 0.7
 local MAX_ELSEWHERE = 7
 local hoverRow = nil
 
+-- Which rows show: everything, still missing, caught (as the Pokedex
+-- panel); the button top right cycles it, kept across runs.
+local FILTERS = { "all", "missing", "caught" }
+local FLABEL  = { all = "All", missing = "Missing", caught = "Caught" }
+local FILTER_FILE = "routefilter.txt"
+local filter = 1
+do
+    local body = data and data.read and data.read(FILTER_FILE)
+    for i, f in ipairs(FILTERS) do if body and body:match("^%a+") == f then filter = i end end
+end
+local function keep(key)
+    local f = FILTERS[filter]
+    if f == "all" then return true end
+    return (SWSH.caught.has(key) and true or false) == (f == "caught")
+end
+
+-- The list scrolls (the wheel over it) when it's taller than the screen.
+local scroll = 0
+
 local function visible()
     local mode = SWSH.mod:get("route_info")
     if mode == "off" or not (game.isActive("pkmn_sword") or game.isActive("pkmn_shield")) then return false end
@@ -184,36 +204,89 @@ local function visible()
     return true
 end
 
--- One flat list of rows, so drawing and hit-testing agree.
+-- The key item a way surely needs and you surely lack (48_progress), or nil.
+-- Those ways leave the list for a "Requires ..." group; a part of a place
+-- you may not reach yet (a high-level area) can't be told, so it stays.
+local REQUIRES = { ["Fishing Rod"] = "Requires Fishing Rod", ["Water Mode"] = "Requires Water Mode" }
+local REQ_LONG = { ["Fishing Rod"] = "Requires the Fishing Rod", ["Water Mode"] = "Requires the bike's Water Mode" }
+local function lacks(how)
+    local P = SWSH.progress
+    if not P then return nil end
+    if how == "fishing" and not P.hasRod() then return "Fishing Rod" end
+    if (how == "surfing" or how == "Sharpedo spots") and not P.hasWater() then return "Water Mode" end
+end
+
+-- One flat list of rows, so drawing and hit-testing agree: { x, y, W, H, u,
+-- rows (those on screen), btn (the filter button), scroll, maxScroll, n }.
 local function layout(screenH)
     if not R.name then return nil end
     local u = U * screenH / SWSH.REF_H
-    local list = R.area and R.area[ver()] or {}
+    local x, y, W = 2 * u, 2 * u, LIST_N * u
+    -- Each species split: the ways open to you stay in the list, the rest go
+    -- under what they need -- one met both ways is in both.
+    local wild, groups, order = {}, {}, {}
+    for _, e in ipairs(R.area and R.area[ver()] or {}) do
+        if keep(e[1]) then
+            local open, shut = {}, {}
+            for _, w in ipairs(e[3]) do
+                local need = lacks(w[1])
+                if need then
+                    shut[need] = shut[need] or {}
+                    table.insert(shut[need], w)
+                else
+                    open[#open + 1] = w
+                end
+            end
+            if #open > 0 then wild[#wild + 1] = { e[1], e[2], open } end
+            for need, ws in pairs(shut) do
+                if not groups[need] then groups[need] = {}; order[#order + 1] = need end
+                table.insert(groups[need], { e[1], e[2], ws })
+            end
+        end
+    end
+    table.sort(order)
     -- Gifts, trades and fixed Pokemon of this version, under a rule (as FRLG's).
     local sp = {}
     for _, e in ipairs(R.special or {}) do
-        if e[6] == "" or e[6] == version() then sp[#sp + 1] = e end
+        if (e[6] == "" or e[6] == version()) and keep(e[1]) then sp[#sp + 1] = e end
     end
-    local x, y = 2 * u, 2 * u
-    -- A long list (the Wild Area's) runs off the bottom rather than shrinking
-    -- to nothing: the longer of the two lists is cut to what fits, "+N more".
-    local fit = math.floor((screenH - y - 2 * u - (TOP_N + 1.5) * u) / (ROW_N * u))
-    local nw, ns = #list, #sp
-    local function rowsFor(a, b) return math.max(a, 0) + (a < #list and 1 or 0) + (#list == 0 and #sp == 0 and 1 or 0)
-                                       + (b > 0 and (b + RULE_N / ROW_N + (b < #sp and 1 or 0)) or 0) end
-    while rowsFor(nw, ns) > fit and (nw > 0 or ns > 0) do
-        if nw >= ns then nw = nw - 1 else ns = ns - 1 end
+
+    local all = {}
+    for _, e in ipairs(wild) do all[#all + 1] = { kind = "wild", e = e, h = ROW_N } end
+    for _, need in ipairs(order) do
+        all[#all + 1] = { kind = "req", label = REQUIRES[need], long = REQ_LONG[need], list = groups[need], h = ROW_N }
     end
+    if #sp > 0 then
+        if #all > 0 then all[#all + 1] = { kind = "rule", h = RULE_N } end
+        for _, e in ipairs(sp) do all[#all + 1] = { kind = "special", e = e, h = ROW_N } end
+    end
+    if #all == 0 then
+        local nothing = not (R.area and #R.area[ver()] > 0) and #(R.special or {}) == 0
+        all[1] = { kind = "none", h = ROW_N,
+                   text = nothing and "No wild Pokemon here"
+                          or (FILTERS[filter] == "missing" and "Nothing missing here" or "Nothing caught here yet") }
+    end
+
+    -- What fits under the header; past that it scrolls, a row at a time.
+    local room = (screenH - y - 2 * u) / u - TOP_N - 1.5
+    local total = 0
+    for _, r in ipairs(all) do total = total + r.h end
+    local maxScroll, rest = 0, total
+    while rest > room and maxScroll < #all - 1 do maxScroll = maxScroll + 1; rest = rest - all[maxScroll].h end
+    if R.changed then scroll, R.changed = 0, nil end
+    scroll = math.max(0, math.min(scroll, maxScroll))
     local rows, yy = {}, TOP_N
-    if #list == 0 and #sp == 0 then rows[1] = { kind = "none", y = yy, h = ROW_N }; yy = yy + ROW_N end
-    for i = 1, nw do rows[#rows + 1] = { kind = "wild", e = list[i], y = yy, h = ROW_N }; yy = yy + ROW_N end
-    if nw < #list then rows[#rows + 1] = { kind = "more", n = #list - nw, y = yy, h = ROW_N }; yy = yy + ROW_N end
-    if ns > 0 then
-        rows[#rows + 1] = { kind = "rule", y = yy, h = RULE_N }; yy = yy + RULE_N
-        for i = 1, ns do rows[#rows + 1] = { kind = "special", e = sp[i], y = yy, h = ROW_N }; yy = yy + ROW_N end
-        if ns < #sp then rows[#rows + 1] = { kind = "more", n = #sp - ns, y = yy, h = ROW_N }; yy = yy + ROW_N end
+    for i = scroll + 1, #all do
+        local r = all[i]
+        if yy + r.h - TOP_N > room + 0.01 then break end
+        r.y = yy
+        rows[#rows + 1] = r
+        yy = yy + r.h
     end
-    return x, y, LIST_N * u, (yy + 1.5) * u, u, rows
+    local bw = width("Missing", 1.4 * u) + 1.6 * u
+    return { x = x, y = y, W = W, H = (yy + 1.5) * u, u = u, rows = rows,
+             btn = { x + W - 1.0 * u - bw, y + 0.9 * u, bw, 2.6 * u },
+             scroll = scroll, maxScroll = maxScroll, n = #all }
 end
 
 local function rowAt(rows, y, u, my)
@@ -223,7 +296,8 @@ local function rowAt(rows, y, u, my)
     end
 end
 
--- Why a way isn't open to you yet (48_progress: rod, Water Mode, badges), or nil.
+-- Why a way isn't open to you yet (48_progress: the badges for its level --
+-- rod and Water Mode ways are in their own group), or nil.
 local function blocked(w) return SWSH.progress and SWSH.progress.blocked(w[1], w[3]) end
 local function rowBlocked(row)
     if not SWSH.progress then return false end
@@ -238,7 +312,8 @@ local function dim(c, off) if off then return { c[1] * 0.45, c[2] * 0.45, c[3] *
 
 local function specialTag(e) return e[3] .. " Lv" .. e[5] end
 
-local function ballRect(x, y, W, u, row)
+local function ballRect(L, row)
+    local x, y, W, u = L.x, L.y, L.W, L.u
     local bx
     if row.kind == "wild" then
         bx = x + W - 1.4 * u - width(pct(row.e[3][1]), 1.8 * u) - BALL_PAD * u - BALL_N * u
@@ -250,18 +325,30 @@ local function ballRect(x, y, W, u, row)
     return bx, y + row.y * u - 0.2 * u, BALL_N * u, BALL_N * u
 end
 
+local function inside(r, mx, my) return mx >= r[1] and mx < r[1] + r[3] and my >= r[2] and my < r[2] + r[4] end
+
 ----------------------------------------------------------------- the list --
 overlay.add("swsh.route", {
     mode = "pinned",
+    OnWheel = function(_, _, _, dy)
+        local L = layout(overlay.screenH())
+        if not L or L.maxScroll == 0 then return end
+        scroll = math.max(0, math.min(L.maxScroll, scroll - (dy > 0 and 3 or -3)))
+    end,
     OnMouseDown = function(self, lx, ly, btn)
         if btn ~= 1 then return end
-        local x, y, W, _, u, rows = layout(overlay.screenH())
-        if not rows then return end
+        local L = layout(overlay.screenH())
+        if not L then return end
         local mx, my = lx + (self.x or 0), ly + (self.y or 0)
-        local _, row = rowAt(rows, y, u, my)
+        if inside(L.btn, mx, my) then
+            filter, scroll = filter % #FILTERS + 1, 0
+            if data and data.write then data.write(FILTER_FILE, FILTERS[filter]) end
+            return
+        end
+        local _, row = rowAt(L.rows, L.y, L.u, my)
         if not row or not row.e then return end
-        local bx, by, bw, bh = ballRect(x, y, W, u, row)
-        if bx and mx >= bx and mx < bx + bw and my >= by and my < by + bh then
+        local bx, by, bw, bh = ballRect(L, row)
+        if bx and inside({ bx, by, bw, bh }, mx, my) then
             SWSH.caught.toggle(row.e[1])
             return
         end
@@ -284,37 +371,49 @@ overlay.add("swsh.route", {
             end
             return
         end
-        local x, y, W, H, _, rows = layout(d:h())
-        if not x then return end
+        local L = layout(d:h())
+        if not L then return end
+        local x, y, W, H, rows = L.x, L.y, L.W, L.H, L.rows
 
         d:rect(x, y, W, H, 20, 22, 32, 232)
         d:outline(x, y, W, H, 120, 130, 165, 255)
         d:rect(x, y, W, 6.6 * u, 40, 46, 64, 240)
-        -- The name gets the header's whole width (cut only past ~19 letters);
-        -- under it the region and which version's table this is, so a wrong
-        -- one is obvious.
+        -- The name gets the header's width up to the filter button; under it
+        -- the region and which version's table this is, so a wrong one is
+        -- obvious.
+        local b = L.btn
         local name = R.name
-        local fit = math.floor((W - 2.8 * u) / (2.2 * u))
+        local fit = math.floor((b[1] - 0.8 * u - (x + 1.4 * u)) / (2.2 * u))
         if #name > fit then name = name:sub(1, math.max(1, fit - 2)) .. ".." end
         d:text(x + 1.4 * u, y + 1.2 * u, name, 2.2 * u, 238, 242, 252, 255)
         d:text(x + 1.4 * u, y + 4.2 * u, R.area and R.area.region or "", 1.3 * u, 120, 132, 160, 255)
         rightText(d, x + W - 1.4 * u, y + 4.2 * u, version(), 1.3 * u, 150, 170, 205)
+        -- The filter: a small button saying what's shown (amber when it hides some).
+        local hotB = overlay.mouseX and inside(b, overlay.mouseX(), overlay.mouseY())
+        local on = FILTERS[filter] ~= "all"
+        d:rect(b[1], b[2], b[3], b[4], hotB and 70 or 52, hotB and 80 or 58, hotB and 110 or 80, 255)
+        d:outline(b[1], b[2], b[3], b[4], on and 225 or 100, on and 190 or 112, on and 120 or 145, 255)
+        local lbl = FLABEL[FILTERS[filter]]
+        d:text(b[1] + (b[3] - width(lbl, 1.4 * u)) / 2, b[2] + 0.6 * u, lbl, 1.4 * u,
+               on and 235 or 200, on and 205 or 206, on and 140 or 222, 255)
 
         for i, row in ipairs(rows) do
             local ry = y + row.y * u
-            if hoverRow == i and (row.kind == "wild" or row.kind == "special") then
+            if hoverRow == i and (row.kind == "wild" or row.kind == "special" or row.kind == "req") then
                 d:rect(x + 0.6 * u, ry - 0.4 * u, W - 1.2 * u, row.h * u, 58, 66, 92, 255)
             end
             if row.kind == "none" then
-                d:text(x + 1.4 * u, ry, "No wild Pokemon here", 1.8 * u, 150, 156, 175, 255)
-            elseif row.kind == "more" then
-                d:text(x + 1.4 * u, ry, "+" .. row.n .. " more", 1.6 * u, 140, 146, 165, 255)
+                d:text(x + 1.4 * u, ry, row.text, 1.8 * u, 150, 156, 175, 255)
             elseif row.kind == "rule" then
                 d:line(x + 1.4 * u, ry + 0.5 * u, x + W - 1.4 * u, ry + 0.5 * u, 90, 100, 130, 255)
+            elseif row.kind == "req" then
+                -- What you can't meet yet: one line, the Pokemon on hover.
+                d:text(x + 1.4 * u, ry, row.label, 1.8 * u, 200, 165, 105, 255)
+                rightText(d, x + W - 1.4 * u, ry + 0.2 * u, "(" .. #row.list .. ")", 1.5 * u, 160, 140, 110)
             elseif row.kind == "special" then
                 -- Name plus a short tag (Gift / Trade / Static); the rest on hover.
                 local e = row.e
-                local bx, by, bw = ballRect(x, y, W, u, row)
+                local bx, by, bw = ballRect(L, row)
                 local fit = math.floor((bx - 0.8 * u - (x + 1.4 * u)) / (1.8 * u))
                 local name = #e[2] > fit and (e[2]:sub(1, math.max(1, fit - 2)) .. "..") or e[2]
                 local c1, c2 = dim({ 215, 195, 245 }, rowBlocked(row)), dim({ 165, 150, 200 }, rowBlocked(row))
@@ -327,7 +426,7 @@ overlay.add("swsh.route", {
                 local c = dim(st.c, rowBlocked(row))
                 -- The name, and the part of the place it's only met in, stop
                 -- short of the icon, ball and odds: a long one is cut.
-                local bx, by, bw = ballRect(x, y, W, u, row)
+                local bx, by, bw = ballRect(L, row)
                 local room = bx - (st.icon and 2.8 or 0.8) * u - (x + 1.4 * u)
                 local only = onlyPart(row.e)
                 if only then room = room - (#only * 1.15 + 1.0) * u end
@@ -343,30 +442,68 @@ overlay.add("swsh.route", {
                 if st.icon then icon(d, st.icon, bx - 2.4 * u, ry + 0.2 * u, 1.7 * u, c[1], c[2], c[3]) end
             end
         end
+        -- A scroll bar on the right edge when the list doesn't fit.
+        if L.maxScroll > 0 then
+            local tx, ty, th = x + W - 0.75 * u, y + (TOP_N - 0.4) * u, H - (TOP_N + 0.6) * u
+            d:rect(tx, ty, 0.45 * u, th, 44, 50, 68, 255)
+            local bh = math.max(1.5 * u, th * #rows / L.n)
+            d:rect(tx, ty + (th - bh) * (L.scroll / L.maxScroll), 0.45 * u, bh, 120, 140, 190, 255)
+        end
     end,
 })
 
 ------------------------------------------------------------- the row detail --
+local function card(d, L, row, pw, ph)
+    local u = L.u
+    local px, py = L.x + L.W + 0.8 * u, L.y + row.y * u - 1.0 * u
+    if px + pw > d:w() then px = L.x - pw - 0.8 * u end
+    if py + ph > d:h() then py = d:h() - ph - 2 end
+    if py < 2 then py = 2 end
+    d:rect(px, py, pw, ph, 18, 20, 30, 244)
+    d:outline(px, py, pw, ph, 150, 165, 205, 255)
+    return px, py
+end
+
 overlay.add("swsh.routeinfo", {
     mode = "pinned",
     paint = function(d)
         if not hoverRow or not visible() then return end
-        local x, y, W, _, u, rows = layout(d:h())
-        if not x then return end
-        local row = rows[hoverRow]
+        local L = layout(d:h())
+        if not L then return end
+        local u = L.u
+        local row = L.rows[hoverRow]
         if not row then return end
         local fs = 1.6 * u
+        if row.kind == "req" then
+            -- The Pokemon that need it: each with its way, odds and levels.
+            local pw = 52 * u
+            local hint = wrap("Have it already? Tick it in the progress editor (the mod's settings).",
+                              math.floor((pw - 2.4 * u) / (fs * 0.85)))
+            local ph = (4.4 + #row.list * 2.4 + 0.6 + #hint * 2.0) * u
+            local px, py = card(d, L, row, pw, ph)
+            d:text(px + 1.2 * u, py + 0.8 * u, row.long, fs, 225, 190, 120, 255)
+            local ry = py + 3.8 * u
+            for _, e in ipairs(row.list) do
+                local w = e[3][1]
+                local st = style(w[1])
+                local c = st.c
+                d:text(px + 1.2 * u, ry, e[2], fs * 0.95, 218, 224, 238, 255)
+                d:text(px + 19.0 * u, ry, w[1], fs * 0.9, c[1], c[2], c[3], 255)
+                rightText(d, px + pw - 13.0 * u, ry, pct(w), fs * 0.9, c[1], c[2], c[3])
+                rightText(d, px + pw - 1.2 * u, ry, lvText(w), fs * 0.9, 205, 205, 175)
+                ry = ry + 2.4 * u
+            end
+            for i, ln in ipairs(hint) do
+                d:text(px + 1.2 * u, ry + (0.4 + (i - 1) * 2.0) * u, ln, fs * 0.85, 140, 146, 165, 255)
+            end
+            return
+        end
         if row.kind == "special" then
             local e = row.e
             local why = e[3] == "Static" and SWSH.progress and SWSH.progress.blocked(nil, e[5])
-            local lines = wrap(e[4] .. (why and (". " .. why:gsub("^n", "N")) or ""), math.floor(42 / 1.6) - 2)
+            local lines = wrap(e[4] .. (why and (" " .. why:gsub("^n", "N") .. ".") or ""), 29)
             local pw, ph = 44 * u, (6.6 + #lines * 2.4) * u
-            local px, py = x + W + 0.8 * u, y + row.y * u - 1.0 * u
-            if px + pw > d:w() then px = x - pw - 0.8 * u end
-            if py + ph > d:h() then py = d:h() - ph - 2 end
-            if py < 2 then py = 2 end
-            d:rect(px, py, pw, ph, 18, 20, 30, 244)
-            d:outline(px, py, pw, ph, 150, 165, 205, 255)
+            local px, py = card(d, L, row, pw, ph)
             d:text(px + 1.2 * u, py + 0.8 * u, e[2], fs, 235, 238, 248, 255)
             d:text(px + 1.2 * u, py + 3.4 * u, e[3] .. (e[6] ~= "" and (" (" .. e[6] .. " only)") or ""), fs * 0.9, 215, 195, 245, 255)
             rightText(d, px + pw - 1.2 * u, py + 3.4 * u, "Lv" .. e[5], fs * 0.9, 205, 205, 175)
@@ -386,12 +523,7 @@ overlay.add("swsh.routeinfo", {
         if #others > 0 then ph = ph + 3.0 + #others * 4.4 + (more > 0 and 2.4 or 0) + 1.4 end
         ph = ph * u
 
-        local px, py = x + W + 0.8 * u, y + row.y * u - 1.0 * u
-        if px + pw > d:w() then px = x - pw - 0.8 * u end
-        if py + ph > d:h() then py = d:h() - ph - 2 end
-        if py < 2 then py = 2 end
-        d:rect(px, py, pw, ph, 18, 20, 30, 244)
-        d:outline(px, py, pw, ph, 150, 165, 205, 255)
+        local px, py = card(d, L, row, pw, ph)
         d:text(px + 1.2 * u, py + 0.8 * u, row.e[2], fs, 235, 238, 248, 255)
 
         -- One way of meeting it: icon, how, rate, levels; under it the weather
@@ -451,17 +583,17 @@ overlay.add("swsh.routeinfo", {
 hook.Add("OverlayElement", "swsh.routeRegion", function(el)
     if el.id ~= "swsh.route" then return end
     if not visible() then el.hidden = true; hoverRow = nil; return end
-    local x, y, W, H, u, rows = layout(overlay.screenH())
-    if not x then
+    local L = layout(overlay.screenH())
+    if not L then
         el.hidden = false
         el.x, el.y, el.w, el.h = 0, 0, 0, 0
         hoverRow = nil
         return
     end
-    el.x, el.y, el.w, el.h = x, y, W, H
+    el.x, el.y, el.w, el.h = L.x, L.y, L.W, L.H
     hoverRow = nil
     if el.hovered then
-        local i, row = rowAt(rows, y, u, overlay.mouseY())
-        if i and (row.kind == "wild" or row.kind == "special") then hoverRow = i end
+        local i, row = rowAt(L.rows, L.y, L.u, overlay.mouseY())
+        if i and (row.kind == "wild" or row.kind == "special" or row.kind == "req") then hoverRow = i end
     end
 end)

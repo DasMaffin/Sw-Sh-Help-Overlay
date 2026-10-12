@@ -85,14 +85,24 @@ version you're playing:
 - **hovering** a row: every way it's met here — how, rate, levels, the
   weather it needs, and each part of the place with its own odds — and where
   else it's met;
-- **clicking** a row opens its Bulbapedia page.
+- **clicking** a row opens its Bulbapedia page;
+- what you surely can't meet yet sits in one line instead, **"Requires
+  Fishing Rod"** / **"Requires Water Mode"** (see Story progress); hover it
+  for those Pokémon with their way, odds and levels. One met both ways is in
+  both lists. Once you have the item, the line goes and they're back in the
+  list. (A high-level area that may be out of reach stays in the list: the
+  game data can't tell.)
+- the button top right picks what's listed: **All**, **Missing** (not caught)
+  or **Caught**; it's remembered;
+- a list taller than the screen **scrolls** with the mouse wheel.
 
 Under a line come the **gifts, in-game trades and fixed Pokémon** of the
 place, for your version — the starters in Postwick, Toxel on Route 5, the
 fossils on Route 6, the trades (what they want, where the trader stands), the
 Wild Area's fixed strong Pokémon with the weather they need, legendaries —
 tagged Gift / Trade / Static with their level and the caught ball (click it,
-same as a wild row's); hover for the details. Regina's
+same as a wild row's); hover for one sentence on how you get it (who gives
+it, after what; for a fixed one, the weather it needs). Regina's
 regional-form trades are left out: she moves around the Isle of Armor.
 
 Places with nothing say "No wild Pokemon here". The area is remembered across restarts;
@@ -108,16 +118,18 @@ Two settings say how far you are: *Gym Badges you hold* and *Key items you
 have* (Fishing Rod, the Rotom Bike's Water Mode — Sword/Shield's Surf). They
 tick themselves from the game's own words — "You defeated Gym Leader Milo!"
 and the badge being handed over, "You obtained a Fishing Rod!", the Water Mode
-upgrade — and can be set by hand (do that once if you start mid-game).
+upgrade — and can be set by hand (do that once if you start mid-game):
+in the settings, or in the **progress editor** (setting *Progress editor*: a
+panel with every badge and key item to click on and off; its X closes it).
 Badges count by the highest Gym ticked, so a missed one never lowers it.
 
 What it's for:
 
 - the **catch cap**: a wild Pokémon above Lv 20 / 25 / 30 / 35 / 40 / 45 / 50 /
   55 (0-7 badges; any with 8) bounces your ball back;
-- the route list **dims** what isn't open to you yet — fishing without the
-  rod, surfing without Water Mode, Pokémon above your cap — and its hover says
-  why ("needs 4 badges to catch");
+- the route list moves fishing without the rod and surfing without Water
+  Mode into its **"Requires ..."** lines, and **dims** Pokémon above your cap
+  (its hover says why: "needs 4 badges to catch");
 - in battle, a wild foe above your cap gets a red **"Too strong to catch"**
   under its stats.
 
@@ -178,7 +190,7 @@ put back in the money messages ("You got ₽400 for winning!").
 
 Settings: *Print what is read to the console*; *Read text outside battles too*
 (off: only battle text is printed); *Show both Pokemon's stats in battle*;
-*Gym Badges you hold* / *Key items you have* (Story progress); *Pokedex checklist*; *Show route information* (on / off / overlay only); and *Show
+*Gym Badges you hold* / *Key items you have* / *Progress editor* (Story progress); *Pokedex checklist*; *Show route information* (on / off / overlay only); and *Show
 what the reader sees* (outlines the lines being read and shows the latest
 reading).
 
