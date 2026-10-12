@@ -161,7 +161,17 @@ local FINISH = {
     { "You have no more Pok.-mon that can fight", "lost: none of yours can fight" },
     { "You panicked and dropped", "lost: none of yours can fight" },
     { "was blown out of the den", "blown out of the den" },
+    { "The wild (.-) fled from battle!", "the wild %s fled" },          -- Emergency Exit, Wimp Out
+    { "(.-) fled using its", "%s fled" },                               -- Smoke Ball
 }
+-- Moves that blow the other side away: in a WILD battle they end it on the
+-- spot, with no closing line ("The wild Pancham used Circle Throw!" is the
+-- last). Yours or the wild one's. If the next line says it didn't work, the
+-- battle goes on.
+local FORCE = { "Roar", "Whirlwind", "Circle Throw", "Dragon Tail" }
+local FAILED = { "But it failed", "avoided the attack", "doesn.t affect", "anchors itself",
+                 "anchored itself", "protected itself", "missed", "Substitute took" }
+local forced = false          -- a battle just ended by FORCE: can still be taken back
 local function battleText(lines)
     local s = table.concat(lines, " "):gsub("’", "'"):gsub("%s+", " ")
     for _, p in ipairs(START) do
@@ -172,7 +182,28 @@ local function battleText(lines)
             return
         end
     end
+    if forced then
+        forced = false
+        for _, f in ipairs(FAILED) do
+            if s:find(f) then
+                setState("battle", "the move didn't work")
+                S.foe = S.lastFoe
+                return
+            end
+        end
+    end
     if S.state ~= "battle" then return end
+    if S.foe and S.foe.kind == "wild" then
+        for _, m in ipairs(FORCE) do
+            local who = s:match("^(.-) used " .. m .. "!")
+            if who and not who:find("opposing") then
+                S.lastFoe = S.foe
+                setState("general", who .. " used " .. m)
+                forced = true
+                return
+            end
+        end
+    end
     for _, p in ipairs(FINISH) do
         local who = s:match(p[1])
         if who then
@@ -186,7 +217,7 @@ SWSH.onBattleStateText = battleText      -- for dev/sim.py's --say
 
 -- The battle under way: { kind = "wild" | "trainer", name } (nil when its
 -- opening line wasn't read), or nil outside one.
-function SWSH.battle() return S.state == "battle" and (S.foe or {}) or nil end
+function SWSH.battleState() return S.state == "battle" and (S.foe or {}) or nil end
 
 
 function SWSH.mod:OnFrame(frame)

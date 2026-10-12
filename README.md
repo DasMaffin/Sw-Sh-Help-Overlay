@@ -113,7 +113,10 @@ The list is never shown in a battle. The reader keeps a state, *general* or
 into battle on "You encountered a wild …!", "A wild … appeared!", "You are
 challenged by …!"; back to general on how it ends — "Gotcha! … was caught!",
 "You got away safely!", "The wild … fled!", "The wild … fainted!", "You
-defeated …!", "You lost to …!", "You have no more Pokémon that can fight!".
+defeated …!", "You lost to …!", "You have no more Pokémon that can fight!",
+and in a wild battle "… used Roar / Whirlwind / Circle Throw / Dragon Tail!"
+(either side; the battle just ends there, with no closing line) — unless the
+next line says it missed or failed.
 Your own Pokémon or a Trainer's fainting doesn't end it. Nothing else (a
 battle box, time, an area banner) moves it.
 
@@ -199,7 +202,7 @@ both DLCs) with a ball to tick.
 | `[trainer] Pokemon Trainer Hop` | The trainer you're fighting, from the battle text. |
 | `[foe] Grookey Lv.5 of Pokemon Trainer Hop: exact stats, Hardy` | Their Pokémon was found in their team. |
 | `[area] Rolling Fields (Wild Area)` | The area banner was read (`(no wild Pokemon)` for a town). |
-| `[state] battle (a wild Skwovet)` | The battle state changed: `battle (Trainer Hop)`, `general (caught Skwovet)`, `general (beat Hop)`, `general (you ran away)`, `general (menu)`, ... |
+| `[state] battle (a wild Skwovet)` | The battle state changed: `battle (Trainer Hop)`, `general (caught Skwovet)`, `general (beat Hop)`, `general (you ran away)`, `general (The wild Pancham used Circle Throw)`, ... |
 | `[progress] Grass Badge: 1 badge, catch up to Lv25 (beat Milo)` | A badge or key item was ticked (Story progress). |
 | `[dex] Wooloo caught (caught)` | A Pokédex checklist mark changed: `(caught)` from the text, `(ball by the HP bar)`, `(clicked)` by hand. |
 | `the OCR module isn't available ...` | `bin/ocr.dll` is missing or failed to load. |

@@ -74,7 +74,8 @@
   data we read -- don't claim it.
 - Battle state (30_reader): `S.state` "general"/"battle" changed ONLY by the
   game's start/end lines (START / FINISH tables, btl_std phrases; wild vs
-  trainer in `SWSH.battle()`). User's rule: no battle box -> battle, no
+  trainer in `SWSH.battleState()`; `SWSH.battle` is 40_battle's table; wild-battle
+  Roar/Whirlwind/Circle Throw/Dragon Tail end it, a miss/fail line right after undoes that). User's rule: no battle box -> battle, no
   timeout / banner / menu -> general. Don't add any.
   `SWSH.inBattle()` hides the route list. Game menus: black hint bar
   (`SWSH.MENU`), `SWSH.hideForMenu()` hides every panel unless MCCP's
