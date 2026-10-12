@@ -89,7 +89,8 @@ Under a line come the **gifts, in-game trades and fixed Pokémon** of the
 place, for your version — the starters in Postwick, Toxel on Route 5, the
 fossils on Route 6, the trades (what they want, where the trader stands), the
 Wild Area's fixed strong Pokémon with the weather they need, legendaries —
-tagged Gift / Trade / Static with their level; hover for the details. Regina's
+tagged Gift / Trade / Static with their level and the caught ball (click it,
+same as a wild row's); hover for the details. Regina's
 regional-form trades are left out: she moves around the Isle of Armor.
 
 Places with nothing say "No wild Pokemon here". The area is remembered across restarts;

@@ -223,10 +223,17 @@ local function rowAt(rows, y, u, my)
     end
 end
 
+local function specialTag(e) return e[3] .. " Lv" .. e[5] end
+
 local function ballRect(x, y, W, u, row)
-    if row.kind ~= "wild" then return nil end
-    local txt = pct(row.e[3][1])
-    local bx = x + W - 1.4 * u - width(txt, 1.8 * u) - BALL_PAD * u - BALL_N * u
+    local bx
+    if row.kind == "wild" then
+        bx = x + W - 1.4 * u - width(pct(row.e[3][1]), 1.8 * u) - BALL_PAD * u - BALL_N * u
+    elseif row.kind == "special" then        -- one column, left of the widest tag ("Static Lv100")
+        bx = x + W - 1.4 * u - width("Static Lv100", 1.5 * u) - BALL_PAD * u - BALL_N * u
+    else
+        return nil
+    end
     return bx, y + row.y * u - 0.2 * u, BALL_N * u, BALL_N * u
 end
 
@@ -294,11 +301,12 @@ overlay.add("swsh.route", {
             elseif row.kind == "special" then
                 -- Name plus a short tag (Gift / Trade / Static); the rest on hover.
                 local e = row.e
-                local tag = e[3] .. " Lv" .. e[5]
-                local fit = math.floor((W - 2.8 * u - width(tag, 1.5 * u) - 1.0 * u) / (1.8 * u))
+                local bx, by, bw = ballRect(x, y, W, u, row)
+                local fit = math.floor((bx - 0.8 * u - (x + 1.4 * u)) / (1.8 * u))
                 local name = #e[2] > fit and (e[2]:sub(1, math.max(1, fit - 2)) .. "..") or e[2]
                 d:text(x + 1.4 * u, ry, name, 1.8 * u, 215, 195, 245, 255)
-                rightText(d, x + W - 1.4 * u, ry + 0.2 * u, tag, 1.5 * u, 165, 150, 200)
+                rightText(d, x + W - 1.4 * u, ry + 0.2 * u, specialTag(e), 1.5 * u, 165, 150, 200)
+                SWSH.drawBall(d, bx, by, bw, SWSH.caught.has(e[1]))
             else
                 local top = row.e[3][1]
                 local st = style(top[1])
