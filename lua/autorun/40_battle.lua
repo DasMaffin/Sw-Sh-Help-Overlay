@@ -135,6 +135,20 @@ end
 
 ------------------------------------------------------------------ text --
 -- The player's send-out lines: "<opener><name>!"
+local function setLevel(side, who, lv)
+    who.lv, who.hp = lv, nil
+    SWSH.log(SWSH.LV.dialogue, SWSH.C.battle, side == "mine" and "[you] " or "[foe] ",
+             SWSH.C.text, (who.dex and who.dex[1] or who.name) .. " Lv." .. lv)
+    resolve(who)
+end
+
+-- A new battle: both sides are read afresh (the same species again may be
+-- at another level).
+local function newBattle()
+    local n = SWSH.battleNumber and SWSH.battleNumber() or 0
+    if B.no ~= n then B.no, B.mine, B.foe = n, nil, nil end
+end
+
 local MINE = { "^Go! ", "in charge, ", "Go for it, ", "Hang in there, ",
                "Get ’em, ", "Get 'em, " }
 
@@ -155,6 +169,7 @@ end
 -- Ticks the species in the Pokedex checklist. Not "was caught in a sticky
 -- web!", which doesn't end there.
 local CATCH = { "evolved into ([^!]+)!", "([^!]-) was caught!", "^(.-)[’']s data was added to the Pok",
+                "^(.-)[’']s data will be added to", "^(.-) hatched from the Egg!",
                 "You caught ([^!]+)!", "^(.-) has been sent to a Box" }
 function SWSH.onCatchText(lines)
     if not SWSH.caught then return end
@@ -166,11 +181,31 @@ function SWSH.onCatchText(lines)
     end
 end
 
+-- The Pokedex page of a species new to it (30_reader): caught, or got.
+function SWSH.onDexPage(name)
+    local e = SWSH.caught and lookup(name)
+    if e and not SWSH.caught.has(e) then SWSH.caught.mark(e, "new Pokedex entry") end
+end
+
 function SWSH.onBattleText(lines)
+    newBattle()
     local s = table.concat(lines, " ")
     for _, opener in ipairs(MINE) do
         local name = s:match(opener .. "([^!,]+)!")
         if name then set("mine", name) return end
+    end
+    local grew, to = s:match("^(.-) grew to Lv%.? ?(%d+)!")
+    if grew then
+        to = tonumber(to)
+        for _, side in ipairs({ "mine", "foe" }) do
+            local who = B[side]
+            local e = lookup(grew)
+            if who and e and who.dex == e and to >= 1 and to <= 100 and who.lv ~= to then
+                setLevel(side, who, to)
+                return
+            end
+        end
+        return
     end
     local by = s:match("challenged by (.-)!")
     if by then setTrainer(by) return end
@@ -217,6 +252,7 @@ local function steady(key, v)
 end
 
 function SWSH.onPanels(got)
+    newBattle()
     for _, side in ipairs({ "mine", "foe" }) do
         local name = got[side .. ".name"]
         local dex
@@ -235,14 +271,13 @@ function SWSH.onPanels(got)
            and who and who.dex == dex then
             SWSH.caught.mark(dex, "ball by the HP bar")
         end
+        -- Read once per Pokemon, kept until it's switched out (the chat's
+        -- "Go! X!" / "sent out X!" make a new one): a status tag (SLP, PAR)
+        -- covers the level's last digit, "Lv.20" then reads "Lv.2". A level
+        -- up mid-battle comes from its "grew to Lv. N!" line instead.
         local lv = tonumber((got[side .. ".lv"] or ""):match("(%d+)%D*$"))
         if lv and (lv < 1 or lv > 100) then lv = nil end
-        if who and steady(side .. ".lv", lv) and who.lv ~= lv then
-            who.lv, who.hp = lv, nil
-            SWSH.log(SWSH.LV.dialogue, SWSH.C.battle, side == "mine" and "[you] " or "[foe] ",
-                     SWSH.C.text, (who.dex and who.dex[1] or who.name) .. " Lv." .. lv)
-            resolve(who)
-        end
+        if who and not who.lv and steady(side .. ".lv", lv) then setLevel(side, who, lv) end
         -- "8/23": the max HP is the HP stat, if it fits the level.
         local hp = tonumber((got[side .. ".hp"] or ""):match("/%s*(%d+)"))
         if who and who.dex and who.lv and hp and steady(side .. ".hp", hp) then

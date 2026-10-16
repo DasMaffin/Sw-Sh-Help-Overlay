@@ -653,7 +653,7 @@ SWSH.SPECIALS = {
     ["Route 4"] = {
         { "diglett", "Diglett", "Static", "A strong one stands in the open here; walk into it to battle.", 17, "" } },
     ["Route 5"] = {
-        { "toxel", "Toxel", "Gift", "The Pokemon Nursery worker on Route 5 gives you a Toxel Egg.", 1, "" },
+        { "toxel", "Toxel", "Gift", "The Pokemon Nursery worker on Route 5 gives you a Toxel that hatched from an Egg she found.", 1, "" },
         { "eldegoss", "Eldegoss", "Static", "A strong one stands in the open here; walk into it to battle.", 22, "" } },
     ["Route 6"] = {
         { "dracozolt", "Dracozolt", "Gift", "Cara Liss on Route 6 restores it from a Fossilized Bird and a Fossilized Drake.", 10, "" },

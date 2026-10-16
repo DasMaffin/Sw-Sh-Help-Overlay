@@ -360,7 +360,7 @@ GIFT_HOW = {'Grookey': 'Leon lets you choose one of the three at the very start 
             'Sobble': 'Leon lets you choose one of the three at the very start of the game.',
             'Charmander': "Leon gives it at his house in Postwick once you're Champion.",
             'Type: Null': 'Given at the Battle Tower in Wyndon after the post-game story.',
-            'Toxel': 'The Pokemon Nursery worker on Route 5 gives you a Toxel Egg.',
+            'Toxel': 'The Pokemon Nursery worker on Route 5 gives you a Toxel that hatched from an Egg she found.',
             'Pikachu': "A man in the Wild Area Station gives it if the Switch has a Let's Go Pikachu save.",
             'Eevee': "A man in the Wild Area Station gives it if the Switch has a Let's Go Eevee save.",
             'Dracozolt': 'Cara Liss on Route 6 restores it from a Fossilized Bird and a Fossilized Drake.',

@@ -179,11 +179,22 @@ SWSH.SYS = {
 -- The evolution scene's text ("Congratulations! Your Scorbunny evolved /
 -- into Raboot!"): white, on a dark see-through band over the scene's pink
 -- backdrop -- told by that band: mid-dark, and pink in chroma (V high),
--- above the first line and between the two.
+-- between the two lines and under the second. Most of each row is enough:
+-- the Pokemon itself often stands in the band (Liepard, Butterfree).
 SWSH.EVO = {
     x0 = 404, x1 = 1516,
     lines = { { 922, 989 }, { 1000, 1067 } },
-    band = { { y = 915, x0 = 420, x1 = 1500 }, { y = 993, x0 = 420, x1 = 1500 } },
+    band = { { y = 993, x0 = 420, x1 = 1500 }, { y = 1074, x0 = 420, x1 = 1500 } },
+}
+
+-- The Pokedex page shown when a species is new to it (after a catch, an
+-- evolution, a gift): "No. 043 | Drednaw" on a black bar, the caught ball at
+-- its right end, the grey "Bite Pokemon" row under it.
+SWSH.DEXPAGE = {
+    name = { x0 = 1225, x1 = 1620, y0 = 150, y1 = 228 },
+    bar  = { { y = 146, x0 = 1240, x1 = 1840 }, { y = 230, x0 = 1240, x1 = 1840 } },
+    grey = { { y = 300, x0 = 920, x1 = 1800 } },
+    ball = { { y = 188, x0 = 1790, x1 = 1850 } },
 }
 
 -- Cutscene subtitles: white text straight over the scene, no box. Read only

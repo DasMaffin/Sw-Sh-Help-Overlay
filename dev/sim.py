@@ -259,6 +259,7 @@ def main():
         for _ in range(30):
             mod.Think(mod)
             mod.OnFrame(mod, frame)
+        L.execute("SWSH.battle.mine, SWSH.battle.foe = nil, nil")   # the next one is another battle
 
 
 if __name__ == "__main__":

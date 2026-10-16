@@ -46,6 +46,10 @@ in charge, …!", "Go for it, …!") is yours, "… sent out Wooloo!" and "You
 encountered a wild …!" the opponent's — and from the HP panels themselves,
 which are read while a battle menu is up: each name, each "Lv.", and your
 HP ("8/23"). A panel reading counts once it has been read the same twice.
+A level is read once per Pokémon and kept until it's switched out (a new
+"Go! …!" / "sent out …!", or a new battle): a status tag (SLP, PAR, …) covers
+its last digit, so "Lv.20" would read "Lv.2". A level-up mid-battle comes from
+its "… grew to Lv. 21!" line.
 
 Two panels in the look of pkmn_stats' YOURS / ENEMY panels then show each
 Pokémon's types and its stats at its level: YOURS above your HP panel, ENEMY
@@ -170,7 +174,8 @@ Two settings say how far you are: *Gym Badges you hold* and *Key items you
 have* (the Rotom Bike's Water Mode — Sword/Shield's Surf — and the
 Catching Charm, for the catch odds). They
 tick themselves from the game's own words — "You defeated Gym Leader Milo!"
-and the badge being handed over, "You obtained a Catching Charm!", the Water Mode
+the badge being handed over and "You can now catch Pokémon of up to Lv. 25!"
+right after it, "You obtained a Catching Charm!", the Water Mode
 upgrade — and can be set by hand (do that once if you start mid-game):
 in the settings, or in the **progress editor** (setting *Progress editor*: a
 panel with every badge and key item to click on and off — the same settings
@@ -214,9 +219,13 @@ both DLCs) with a ball to tick.
   its own order and numbers. The count (`12/400`) is within that dex.
 - **Showing:** cycles everything / still missing / caught.
 - **The ball** toggles caught. It also ticks itself:
-  - from the battle text, in the game's own words: "Gotcha! … was caught!",
-    "…’s data was added to the Pokédex.", "You caught …!", "… has been sent
-    to a Box!";
+  - from the game's text, in its own words: "Gotcha! … was caught!",
+    "…’s data was added to the Pokédex.", "…’s data will be added to the
+    Pokédex!" (gifts), "… hatched from the Egg!", "You caught …!", "… has been
+    sent to a Box!", and the evolution scene's "Your … evolved into …!";
+  - from the Pokédex page the game shows for a species new to it (after a
+    catch, an evolution or a gift: "No. 043 | Drednaw" on a black bar, with
+    the caught ball);
   - from the Poké Ball the game puts right of a wild Pokémon's HP bar when you
     already have its species — read with the HP panels while a battle menu is
     up, and only with that panel's name read the same twice.
@@ -247,7 +256,7 @@ both DLCs) with a ball to tick.
 | `[area] Rolling Fields (Wild Area)` | The area banner was read (`(no wild Pokemon)` for a town). |
 | `[state] battle (a wild Skwovet)` | The battle state changed: `battle (Trainer Hop)`, `general (caught Skwovet)`, `general (beat Hop)`, `general (you ran away)`, `general (The wild Pancham used Circle Throw)`, ... |
 | `[progress] Grass Badge: 1 badge, catch up to Lv25 (beat Milo)` | A badge or key item was ticked (Story progress). |
-| `[dex] Wooloo caught (caught)` | A Pokédex checklist mark changed: `(caught)` from the text, `(evolved)` from "Your … evolved into …!", `(ball by the HP bar)`, `(clicked)` by hand. |
+| `[dex] Wooloo caught (caught)` | A Pokédex checklist mark changed: `(caught)` from the text, `(evolved)` from "Your … evolved into …!", `(new Pokedex entry)` from its Pokédex page, `(ball by the HP bar)`, `(clicked)` by hand. |
 | `the OCR module isn't available ...` | `bin/ocr.dll` is missing or failed to load. |
 | `OCR failed: ...` | The module reported an error for a job. |
 | `frame format ... is not supported` | The capture isn't NV12. |

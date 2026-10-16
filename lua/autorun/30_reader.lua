@@ -126,18 +126,29 @@ local function gender(frame, g, sx, sy)
     if red >= 3 and blue < 2 then return "female" end
 end
 local function evoOpen(frame, sx, sy)      -- the evolution scene's pink band
-    local lo, hi = probeRange(frame, SWSH.EVO.band, sx, sy)
-    if not (lo >= 40 and hi <= 125) then return false end
     for _, p in ipairs(SWSH.EVO.band) do
         local x0 = math.floor(p.x0 * sx / 2) * 2
-        local s = frame:region(x0, frame:height() + math.floor(p.y * sy / 2),
-                               math.floor((p.x1 - p.x0) * sx / 2) * 2, 1)
+        local w = math.floor((p.x1 - p.x0) * sx / 2) * 2
+        local y = math.floor(p.y * sy)
+        local luma = frame:region(x0, y, w, 1)
+        local s = frame:region(x0, frame:height() + math.floor(y / 2), w, 1)
+        local n, ok = 0, 0
         for i = 1, #s - 1, 16 do
-            local u, v = s:byte(i), s:byte(i + 1)
-            if v < 145 or u < 115 or u > 165 then return false end
+            local l, u, v = luma:byte(i), s:byte(i), s:byte(i + 1)
+            n = n + 1
+            if l >= 40 and l <= 125 and v >= 145 and u >= 115 and u <= 165 then ok = ok + 1 end
         end
+        if n == 0 or ok < n * 0.7 then return false end
     end
     return true
+end
+local function dexPageOpen(frame, sx, sy)  -- black name bar, grey row, the ball
+    local lo, hi = probeRange(frame, SWSH.DEXPAGE.bar, sx, sy)
+    if hi > 35 then return false end
+    lo, hi = probeRange(frame, SWSH.DEXPAGE.grey, sx, sy)
+    if lo < 185 or hi > 222 then return false end
+    lo, hi = probeRange(frame, SWSH.DEXPAGE.ball, sx, sy)
+    return lo <= 35 and hi >= 200
 end
 local function sysOpen(frame, sx, sy)     -- mid-dark grey and flat
     local lo, hi = probeRange(frame, SWSH.SYS.ground, sx, sy)
@@ -285,6 +296,8 @@ SWSH.onBattleStateText = battleText      -- for dev/sim.py's --say
 -- The battle under way: { kind = "wild" | "trainer", name } (nil when its
 -- opening line wasn't read), or nil outside one.
 function SWSH.battleState() return S.state == "battle" and (S.foe or {}) or nil end
+-- Counts battles started (their opening lines): 40_battle starts afresh.
+function SWSH.battleNumber() return S.battleNo or 0 end
 -- The turn of the battle: 1 at its first battle menu, +1 at each menu that
 -- follows battle text (backing out of the bag or party adds none); nil
 -- outside a battle or before its first menu.
@@ -358,6 +371,12 @@ function SWSH.mod:OnFrame(frame)
         for i, band in ipairs(SWSH.EVO.lines) do
             regions[#regions + 1] = region(i, SWSH.EVO.x0, SWSH.EVO.x1, band, sx, sy)
         end
+    elseif dexPageOpen(frame, sx, sy) then
+        -- New to the Pokedex: its page names the species (40_battle).
+        see(nil)
+        kind = "dexpage"
+        local r = SWSH.DEXPAGE.name
+        regions[1] = region("name", r.x0, r.x1, { r.y0, r.y1 }, sx, sy)
     elseif S.menu then
         -- A battle menu: no text box, but the HP panels say who is fighting
         -- and at what level (40_battle.lua). Its white move names would pass
@@ -463,6 +482,11 @@ local function apply(res)
             if l and l.score >= MIN_SCORE then got[r.key] = l.text end
         end
         if SWSH.onArea then SWSH.onArea(got.name, got.sub) end
+        return
+    end
+    if kind == "dexpage" then            -- a new Pokedex entry's name
+        local l = res.regions[1] and res.regions[1].lines[1]
+        if l and l.score >= MIN_SCORE and SWSH.onDexPage then SWSH.onDexPage(l.text) end
         return
     end
     if kind == "panel" then              -- HP panels: key -> text, for 40_battle

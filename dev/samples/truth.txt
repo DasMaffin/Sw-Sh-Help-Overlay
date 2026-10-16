@@ -12,3 +12,7 @@ area_rolling_fields.webp	Rolling Fields|Wild Area		area
 battle_owned_ball.webp	|		
 evolved_raboot.webp	Congratulations! Your Scorbunny evolved|into Raboot!		evo
 battle_ball_menu.webp	|
+evolved_liepard.webp	Congratulations! Your Purrloin evolved|into Liepard!		evo
+dexpage_drednaw.webp	Drednaw|		dexpage
+badge_catch_lv30.webp	You can now catch Pokémon of up to Lv. 30!|		sys
+sys_toxel_dex.webp	Toxel’s data will be added to|the Pokédex!		sys

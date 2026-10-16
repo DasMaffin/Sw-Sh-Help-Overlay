@@ -103,5 +103,15 @@
   (Love Ball). Catching Charm = key item (`P.hasCharm()`), doubles crits.
   The formula is the game's code (not in pkNX/PKHeX): Gen 8 per Dragonfly Cave.
 - Evolution scene: kind "evo" (`SWSH.EVO`: dark band over the pink backdrop,
-  luma + V chroma probes; subtitle lines) -> "evolved into X!" in
-  onCatchText marks X caught (3rd dex method after catch text and owned ball).
+  luma + V chroma probes on rows between/under the lines, 70% of samples per
+  row -- the Pokemon often stands in the band; subtitle lines) -> "evolved
+  into X!" in onCatchText marks X caught (3rd dex method after catch text and
+  owned ball). 4th: the new-entry Pokedex page (kind "dexpage", `SWSH.DEXPAGE`:
+  black name bar, grey row, caught ball) -> `SWSH.onDexPage(name)`.
+  Gifts: "X's data will be added to", "X hatched from the Egg!".
+- Badges also from "You can now catch Pokemon of up to Lv. N!" / "of any
+  level!" (script main_event text), the badge picked by the cap (version
+  for the 4th/6th).
+- Panel levels: read ONCE per Pokemon (`not who.lv`), kept until a switch
+  (new `set()`) or a new battle (`SWSH.battleNumber()`); status tags cover
+  the last digit. Level-ups via "X grew to Lv. N!" (user's rule).

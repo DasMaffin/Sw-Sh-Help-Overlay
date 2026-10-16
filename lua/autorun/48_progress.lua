@@ -7,6 +7,7 @@
 -- says -- in its own words, from its text files -- and fixable by hand there:
 --   "You defeated Gym Leader Milo!"                        (battle text)
 --   "...present you with your very own Grass Badge!"       (dialogue)
+--   "You can now catch Pokémon of up to Lv. 25!"           (after a badge)
 --   "You obtained a Catching Charm!"                       (system box)
 --   "With the Rotom Bike "Water Mode," you'll cruise..."   (dialogue)
 -- Nothing ever unticks one but the settings.
@@ -85,6 +86,20 @@ function SWSH.onProgressText(lines)
     local badge = s:match("(%a+) Badge!")
     if badge and TIER[badge] and (s:find("present you") or s:find("obtained") or s:find("received")) then
         tick("badges", badge, "given")
+        return
+    end
+    -- Said right after each badge (the start of the line can be cut off).
+    if s:find("atch Pok%S* of any level") then tick("badges", "Dragon", "the catch level went up") return end
+    local lv = tonumber(s:match("atch Pok%S* of up to Lv%.? ?(%d+)") or "")
+    if lv then
+        for n = 1, 7 do
+            if CAP[n] == lv then
+                local sword = game.isActive("pkmn_sword")
+                local b = n == 4 and (sword and "Fighting" or "Ghost") or n == 6 and (sword and "Rock" or "Ice")
+                for k, t in pairs(TIER) do if not b and t == n then b = k end end
+                tick("badges", b, "the catch level went up")
+            end
+        end
         return
     end
     if s:find("Catching Charm") and (s:find("obtained") or s:find("received")) then
