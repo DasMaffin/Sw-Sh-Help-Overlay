@@ -58,7 +58,8 @@
   emit for every kind; phrases from the game's btl_std/btl_app/pokedex text --
   `pknx-export text <message dir> <out>` dumps all game text) and the owned
   ball right of a wild foe's HP bar (`SWSH.OWNED`, red chroma; read with the
-  panels as `got.ball`, marked in `onPanels`).
+  panels as `got.ball`, marked in `onPanels` -- ONLY in a wild battle:
+  a Trainer's panel shows its team's balls there).
 - Story progress (`48_progress.lua`): settings `badges` / `key_items`
   ("multi"), ticked by `SWSH.onProgressText` (reader emit, every kind --
   dialogue/system boxes are ALWAYS read now, printed only with read_all).

@@ -266,8 +266,12 @@ function SWSH.onPanels(got)
         end
         local who = B[side]
         -- The ball by a wild opponent's HP bar: you have its species. Taken
-        -- only with its name read off the same panel, twice.
-        if side == "foe" and SWSH.caught and steady("foe.ball", got.ball and dex or nil)
+        -- only with its name read off the same panel, twice, and only in a
+        -- wild battle: a Trainer's panel has its team's balls there (Bea's
+        -- Machamp was marked).
+        local st = SWSH.battleState and SWSH.battleState()
+        local wild = st and st.kind == "wild" and not B.trainer
+        if side == "foe" and wild and SWSH.caught and steady("foe.ball", got.ball and dex or nil)
            and who and who.dex == dex then
             SWSH.caught.mark(dex, "ball by the HP bar")
         end
